@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Recipes">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23e8590c'/%3E%3Ctext x='50' y='68' font-size='56' text-anchor='middle' fill='white' font-family='Georgia,serif' font-weight='bold'%3ER%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23e8590c'/%3E%3Ctext x='50' y='68' font-size='56' text-anchor='middle' fill='white' font-family='Georgia,serif' font-weight='bold'%3ER%3C/text%3E%3C/svg%3E">
+<title>Recipes</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --text: #1c1c1e; --muted: #6e6e73; --line: #e5e3de;
+    --accent: #e8590c; --accent-soft: #fdebe0; --warn: #b54708; --warn-soft: #fef0c7;
+    --chip: #ecebe7; --radius: 16px;
+    --safe-t: env(safe-area-inset-top); --safe-b: env(safe-area-inset-bottom);
+    --safe-l: env(safe-area-inset-left); --safe-r: env(safe-area-inset-right);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111111; --card: #1c1c1e; --text: #f2f2f7; --muted: #98989f; --line: #2c2c2e;
+      --accent: #ff7a2f; --accent-soft: #3a2416; --warn: #fdb022; --warn-soft: #3b2a0a;
+      --chip: #2c2c2e;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    padding-left: var(--safe-l); padding-right: var(--safe-r);
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  a { color: var(--accent); }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 16px; }
+  [hidden] { display: none !important; }
+
+  /* ---------- list view ---------- */
+  header.top { padding: calc(var(--safe-t) + 20px) 0 6px; }
+  h1 { font: 700 34px/1.1 Georgia, "New York", "Times New Roman", serif; margin: 0; letter-spacing: -.5px; }
+  .count { color: var(--muted); font-size: 15px; margin-top: 4px; }
+  .bar {
+    position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(16px); backdrop-filter: saturate(180%) blur(16px);
+    padding: calc(var(--safe-t) * 0 + 10px) 0 8px; border-bottom: 1px solid transparent;
+  }
+  .bar.scrolled { border-bottom-color: var(--line); padding-top: calc(var(--safe-t) + 8px); }
+  .search { position: relative; }
+  .search input {
+    width: 100%; height: 44px; border-radius: 12px; border: 0; background: var(--chip); color: var(--text);
+    padding: 0 40px 0 38px; font-size: 17px; outline: none; -webkit-appearance: none;
+  }
+  .search input:focus { box-shadow: 0 0 0 2px var(--accent); }
+  .search svg { position: absolute; left: 12px; top: 13px; width: 18px; height: 18px; color: var(--muted); }
+  .search .clear {
+    position: absolute; right: 6px; top: 6px; width: 32px; height: 32px; border-radius: 16px;
+    color: var(--muted); font-size: 20px; line-height: 32px;
+  }
+  .chips {
+    display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px 2px; margin: 0 -16px;
+    scrollbar-width: none; scroll-snap-type: x proximity;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: 0 0 auto; height: 34px; padding: 0 14px; border-radius: 17px; background: var(--chip);
+    font-size: 15px; white-space: nowrap; scroll-snap-align: start; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip small { color: var(--muted); font-size: 13px; }
+  .chip[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+  .chip[aria-pressed="true"] small { color: inherit; opacity: .7; }
+  .chip.label { background: none; padding: 0 2px 0 0; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .6px; cursor: default; }
+
+  .list { list-style: none; margin: 8px 0 0; padding: 0 0 calc(var(--safe-b) + 32px); }
+  .card {
+    display: block; width: 100%; text-align: left; background: var(--card); border-radius: var(--radius);
+    padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 0 0 1px var(--line);
+    transition: transform .12s ease;
+  }
+  .card:active { transform: scale(.985); }
+  .card h2 { font-size: 18px; font-weight: 600; margin: 0 0 4px; line-height: 1.3; }
+  .meta { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+  .meta .dot::before { content: "\00B7"; margin-right: 10px; }
+  .badge { font-size: 12px; font-weight: 600; color: var(--warn); background: var(--warn-soft); padding: 2px 8px; border-radius: 6px; }
+  .preview { color: var(--muted); font-size: 14px; margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+  .empty b { display: block; color: var(--text); font-size: 18px; margin-bottom: 6px; }
+
+  /* ---------- detail view ---------- */
+  .nav {
+    position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between;
+    padding: calc(var(--safe-t) + 6px) 4px 6px; background: color-mix(in srgb, var(--bg) 88%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(16px); backdrop-filter: saturate(180%) blur(16px);
+  }
+  .nav button, .nav a { height: 44px; padding: 0 10px; display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 17px; text-decoration: none; }
+  .nav svg { width: 22px; height: 22px; }
+  .detail { padding-bottom: calc(var(--safe-b) + 40px); }
+  .detail h1 { font-size: 30px; margin: 6px 0 8px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+  .fact { background: var(--chip); border-radius: 10px; padding: 6px 12px; font-size: 14px; }
+  .fact span { color: var(--muted); margin-right: 4px; }
+  .review { margin: 14px 0 0; background: var(--warn-soft); color: var(--warn); border-radius: 12px; padding: 10px 14px; font-size: 15px; }
+  .tabs { display: none; }
+  section.block { margin-top: 26px; }
+  section.block h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0 0 8px; font-weight: 600; display: flex; justify-content: space-between; }
+  section.block h3 button { color: var(--accent); text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
+  .ings, .steps { list-style: none; margin: 0; padding: 0; background: var(--card); border-radius: var(--radius); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+  .ings li { border-top: 1px solid var(--line); }
+  .ings li:first-child { border-top: 0; }
+  .ings button { display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left; padding: 12px 16px; min-height: 44px; }
+  .box { flex: 0 0 22px; height: 22px; border-radius: 11px; border: 2px solid var(--line); margin-top: 1px; display: grid; place-items: center; }
+  .ings .on .box { background: var(--accent); border-color: var(--accent); }
+  .ings .on .box::after { content: ""; width: 6px; height: 11px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
+  .ings .on .txt { color: var(--muted); text-decoration: line-through; }
+  .steps li { border-top: 1px solid var(--line); }
+  .steps li:first-child { border-top: 0; }
+  .steps button { display: flex; gap: 14px; width: 100%; text-align: left; padding: 14px 16px; min-height: 44px; }
+  .num { flex: 0 0 28px; height: 28px; border-radius: 14px; background: var(--chip); font-size: 14px; font-weight: 600; display: grid; place-items: center; }
+  .steps .on { background: var(--accent-soft); }
+  .steps .on .num { background: var(--accent); color: #fff; }
+  .tbd { background: var(--warn-soft); color: var(--warn); border-radius: 4px; padding: 0 3px; }
+  .est { color: var(--muted); }
+  .open { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 28px 0 0; height: 50px; border-radius: 14px; background: var(--accent); color: #fff; font-weight: 600; text-decoration: none; }
+  .added { text-align: center; color: var(--muted); font-size: 13px; margin-top: 12px; }
+  .err { margin: 40px 0; padding: 16px; border-radius: 12px; background: var(--warn-soft); color: var(--warn); }
+  @media (min-width: 900px) {
+    .list { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  }
+</style>
+</head>
+<body>
+<div id="listView" class="wrap">
+  <header class="top">
+    <h1>Recipes</h1>
+    <div class="count" id="count">Loading...</div>
+  </header>
+  <div class="bar" id="bar">
+    <label class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Search recipes or ingredients" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search">
+      <button class="clear" id="clear" type="button" aria-label="Clear search" hidden>&times;</button>
+    </label>
+    <div class="chips" id="typeChips" role="toolbar" aria-label="Type"></div>
+    <div class="chips" id="cuisineChips" role="toolbar" aria-label="Cuisine"></div>
+  </div>
+  <ul class="list" id="list"></ul>
+</div>
+
+<div id="detailView" hidden>
+  <div class="nav wrap">
+    <button type="button" id="back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>Recipes</button>
+    <button type="button" id="share" aria-label="Share">Share</button>
+  </div>
+  <article class="detail wrap" id="detail"></article>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const state = JSON.parse(sessionStorage.getItem("rb_state") || "{}");
+  state.q = state.q || ""; state.type = state.type || ""; state.cuisine = state.cuisine || "";
+  let recipes = [];
+  let wakeLock = null;
+  let listScroll = 0;
+
+  const fold = (s) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const code = (url) => ((url || "").match(/\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/) || [])[1] || "";
+  const save = () => sessionStorage.setItem("rb_state", JSON.stringify({ q: state.q, type: state.type, cuisine: state.cuisine }));
+
+  function fmtItem(s) {
+    let h = esc(s);
+    h = h.replace(/(TBD:[^,;.]*)/g, '<mark class="tbd">$1</mark>');
+    h = h.replace(/^~/, '<span class="est" title="estimated">~</span>');
+    return h;
+  }
+
+  // ---------- data ----------
+  async function load() {
+    try {
+      const res = await fetch("recipes.json?t=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      recipes = (Array.isArray(data) ? data : []).filter((r) => r && r.name && r.url);
+      recipes.forEach((r, i) => {
+        r._i = i;
+        r._id = code(r.url) || String(i);
+        r._hay = fold([r.name, r.cuisine, r.type, ...(r.ingredients || [])].join(" \u0001 "));
+      });
+      // Newest first by "added", stable on file order.
+      recipes.sort((a, b) => (b.added || "").localeCompare(a.added || "") || a._i - b._i);
+    } catch (e) {
+      $("list").innerHTML = '<li class="err">Could not load recipes.json (' + esc(e.message) + "). Pull to refresh.</li>";
+      $("count").textContent = "";
+      return;
+    }
+    $("q").value = state.q;
+    route();
+  }
+
+  // ---------- list ----------
+  function counts(key, pool) {
+    const m = new Map();
+    pool.forEach((r) => { const v = (r[key] || "").trim(); if (v) m.set(v, (m.get(v) || 0) + 1); });
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }
+
+  function matches(r, skip) {
+    if (skip !== "type" && state.type && r.type !== state.type) return false;
+    if (skip !== "cuisine" && state.cuisine && r.cuisine !== state.cuisine) return false;
+    if (state.q) {
+      const terms = fold(state.q).split(/\s+/).filter(Boolean);
+      if (!terms.every((t) => r._hay.includes(t))) return false;
+    }
+    return true;
+  }
+
+  function chips(el, key, label) {
+    // Facet counts reflect the other active filters, so chips never lead to an empty list.
+    const pool = recipes.filter((r) => matches(r, key));
+    const list = counts(key, pool);
+    if (state[key] && !list.some(([v]) => v === state[key])) list.unshift([state[key], 0]);
+    if (list.length < 2 && !state[key]) { el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = '<span class="chip label">' + label + "</span>" +
+      '<button class="chip" type="button" data-v="" aria-pressed="' + !state[key] + '">All</button>' +
+      list.map(([v, n]) => '<button class="chip" type="button" data-v="' + esc(v) + '" aria-pressed="' + (state[key] === v) +
+        '">' + esc(v) + " <small>" + n + "</small></button>").join("");
+    el.onclick = (e) => {
+      const b = e.target.closest("button.chip"); if (!b) return;
+      const v = b.dataset.v;
+      state[key] = state[key] === v ? "" : v;
+      save(); renderList();
+    };
+  }
+
+  function renderList() {
+    chips($("typeChips"), "type", "Type");
+    chips($("cuisineChips"), "cuisine", "Cuisine");
+    const shown = recipes.filter((r) => matches(r));
+    const total = recipes.length;
+    $("count").textContent = total === 0 ? "No recipes yet"
+      : shown.length === total ? total + (total === 1 ? " recipe" : " recipes")
+      : shown.length + " of " + total + " recipes";
+    $("clear").hidden = !state.q;
+    if (!shown.length) {
+      $("list").innerHTML = total
+        ? '<li class="empty"><b>No matches</b>Try another word or clear the filters.</li>'
+        : '<li class="empty"><b>Nothing here yet</b>Share an Instagram recipe from your phone and it will show up in a minute or two.</li>';
+      return;
+    }
+    $("list").innerHTML = shown.map((r) => {
+      const meta = [r.cuisine, r.type, r.time].filter(Boolean).map((m, i) => '<span class="' + (i ? "dot" : "") + '">' + esc(m) + "</span>").join("");
+      const prev = (r.ingredients || []).slice(0, 6).map((s) => s.replace(/^~/, "")).join(", ");
+      return '<li><button class="card" type="button" data-id="' + esc(r._id) + '"><h2>' + esc(r.name) + "</h2>" +
+        '<div class="meta">' + meta + (r.needs_review ? '<span class="badge">Review</span>' : "") + "</div>" +
+        (prev ? '<div class="preview">' + esc(prev) + "</div>" : "") + "</button></li>";
+    }).join("");
+  }
+
+  // ---------- detail ----------
+  function renderDetail(r) {
+    const checked = new Set(JSON.parse(sessionStorage.getItem("rb_chk_" + r._id) || "[]"));
+    const persist = () => sessionStorage.setItem("rb_chk_" + r._id, JSON.stringify([...checked]));
+    const facts = [["Time", r.time], ["Cuisine", r.cuisine], ["Type", r.type]].filter(([, v]) => v)
+      .map(([k, v]) => '<div class="fact"><span>' + k + "</span>" + esc(v) + "</div>").join("");
+    $("detail").innerHTML =
+      "<h1>" + esc(r.name) + "</h1>" +
+      '<div class="facts">' + facts + "</div>" +
+      (r.needs_review ? '<div class="review">Needs review: some items are marked TBD.</div>' : "") +
+      '<section class="block"><h3>Ingredients <button type="button" id="reset">Reset</button></h3><ul class="ings">' +
+      (r.ingredients || []).map((s, i) => '<li><button type="button" data-i="' + i + '" class="' + (checked.has("i" + i) ? "on" : "") +
+        '"><span class="box"></span><span class="txt">' + fmtItem(s) + "</span></button></li>").join("") + "</ul></section>" +
+      '<section class="block"><h3>Steps</h3><ol class="steps">' +
+      (r.steps || []).map((s, i) => '<li><button type="button" data-s="' + i + '" class="' + (checked.has("s" + i) ? "on" : "") +
+        '"><span class="num">' + (i + 1) + "</span><span>" + fmtItem(s) + "</span></button></li>").join("") + "</ol></section>" +
+      '<a class="open" href="' + esc(r.url) + '" target="_blank" rel="noopener">Open on Instagram</a>' +
+      (r.added ? '<div class="added">Added ' + esc(r.added) + "</div>" : "");
+    $("detail").onclick = (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      if (b.id === "reset") { checked.clear(); persist(); renderDetail(r); return; }
+      const key = b.dataset.i != null ? "i" + b.dataset.i : b.dataset.s != null ? "s" + b.dataset.s : null;
+      if (!key) return;
+      if (key[0] === "s") { // one highlighted step at a time
+        const was = checked.has(key);
+        [...checked].filter((k) => k[0] === "s").forEach((k) => checked.delete(k));
+        if (!was) checked.add(key);
+        $("detail").querySelectorAll(".steps button").forEach((x) => x.classList.toggle("on", checked.has("s" + x.dataset.s)));
+      } else {
+        checked.has(key) ? checked.delete(key) : checked.add(key);
+        b.classList.toggle("on");
+      }
+      persist();
+    };
+    $("share").onclick = async () => {
+      const data = { title: r.name, url: location.href };
+      try { if (navigator.share) await navigator.share(data); else await navigator.clipboard.writeText(location.href); } catch (_) {}
+    };
+    document.title = r.name + " \u00b7 Recipes";
+  }
+
+  async function keepAwake(on) {
+    try {
+      if (on && "wakeLock" in navigator && !wakeLock) {
+        wakeLock = await navigator.wakeLock.request("screen");
+        wakeLock.addEventListener("release", () => { wakeLock = null; });
+      } else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+    } catch (_) { wakeLock = null; }
+  }
+
+  // ---------- routing ----------
+  function route() {
+    const m = location.hash.match(/^#\/(.+)$/);
+    const r = m && recipes.find((x) => x._id === decodeURIComponent(m[1]));
+    if (r) {
+      $("listView").hidden = true; $("detailView").hidden = false;
+      renderDetail(r); window.scrollTo(0, 0); keepAwake(true);
+    } else {
+      if (m && recipes.length) history.replaceState(null, "", location.pathname + location.search);
+      $("detailView").hidden = true; $("listView").hidden = false;
+      document.title = "Recipes"; keepAwake(false);
+      renderList(); window.scrollTo(0, listScroll);
+    }
+  }
+
+  $("list").addEventListener("click", (e) => {
+    const b = e.target.closest("button.card"); if (!b) return;
+    listScroll = window.scrollY;
+    location.hash = "#/" + encodeURIComponent(b.dataset.id);
+  });
+  $("back").addEventListener("click", () => {
+    if (history.length > 1 && document.referrer.startsWith(location.origin)) history.back();
+    else location.hash = "";
+  });
+  let t;
+  $("q").addEventListener("input", (e) => {
+    clearTimeout(t);
+    t = setTimeout(() => { state.q = e.target.value.trim(); save(); renderList(); }, 80);
+  });
+  $("q").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
+  $("clear").addEventListener("click", () => { $("q").value = ""; state.q = ""; save(); renderList(); $("q").focus(); });
+  window.addEventListener("hashchange", route);
+  window.addEventListener("scroll", () => $("bar").classList.toggle("scrolled", window.scrollY > 60), { passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      if (!$("detailView").hidden) keepAwake(true);
+      else load(); // refresh the list when returning to the app
+    }
+  });
+  load();
+})();
+</script>
+</body>
+</html>

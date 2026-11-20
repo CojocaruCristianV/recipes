@@ -1,0 +1,19 @@
+# Secrets and local state
+.env
+*.cookies.txt
+cookies*.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+rbvenv/
+
+# Build / media
+_site/
+*.mp4
+*.webm
+*.part
+*.tmp
+.recipes.json.*

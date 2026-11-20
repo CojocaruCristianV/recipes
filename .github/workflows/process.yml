@@ -1,0 +1,104 @@
+name: process
+
+on:
+  issues:
+    types: [opened, labeled]
+  schedule:
+    - cron: "17 5 * * *" # daily sweep (05:17 UTC)
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Optional Instagram URL to process directly"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  issues: write
+  pages: write
+  id-token: write
+
+# GitHub keeps only one pending run per group, so every run drains the whole queue.
+concurrency:
+  group: recipes
+  cancel-in-progress: false
+
+jobs:
+  process:
+    # Security: only the repo owner's issues; on "labeled" only the retry label re-queues.
+    # The Shortcut creates issues with labels, which fires opened + labeled(queued);
+    # ignoring labeled(queued) avoids a redundant second run.
+    if: >-
+      github.event_name != 'issues' || (
+        github.event.issue.user.login == github.repository_owner &&
+        github.event.issue.pull_request == null &&
+        (github.event.action == 'opened' || github.event.label.name == 'retry')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      published: ${{ steps.run.outputs.published }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies (yt-dlp always latest)
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install -U yt-dlp
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Process queue
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          IG_COOKIES_B64: ${{ secrets.IG_COOKIES_B64 }}
+          GITHUB_TOKEN: ${{ github.token }}
+          INPUT_URL: ${{ inputs.url }}
+        run: |
+          if [ -n "$INPUT_URL" ]; then
+            python -m recipebot --url "$INPUT_URL" || echo "::warning::--url run failed; continuing with queue"
+            first=$(grep -c '^published=true' "$GITHUB_OUTPUT" || true)
+          fi
+          python -m recipebot --all-queued
+          if [ "${first:-0}" != "0" ]; then echo "published=true" >> "$GITHUB_OUTPUT"; fi
+
+  deploy:
+    needs: process
+    if: needs.process.outputs.published == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Build site artifact
+        run: |
+          mkdir -p _site
+          cp index.html recipes.json _site/
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v5

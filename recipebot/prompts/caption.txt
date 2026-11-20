@@ -1,0 +1,14 @@
+Extract the recipe from this Instagram caption. Only the caption is available.
+
+Existing cuisine values (reuse one if it fits): $existing_cuisines
+Existing type values (reuse one if it fits): $existing_types
+
+Report honestly whether the caption contains the ingredient list (caption_has_ingredients)
+and the method (caption_has_steps). If one of them is missing, return what the caption does
+contain and leave the missing list empty; do not invent it. In that case also do not set
+needs_review just because that part is missing: it will be filled from the video.
+
+CAPTION:
+<<<
+$caption
+>>>

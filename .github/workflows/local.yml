@@ -1,0 +1,85 @@
+name: local-fallback
+
+# Optional. Processes "needs-local" issues on a self-hosted Windows runner (home IP, yt-dlp).
+# Off unless the repo variable USE_LOCAL_RUNNER is "true". Kept in its own workflow and
+# concurrency group so a job waiting for an offline PC never blocks the main queue.
+
+on:
+  schedule:
+    - cron: "41 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: recipes-local
+  cancel-in-progress: false
+
+jobs:
+  local:
+    if: vars.USE_LOCAL_RUNNER == 'true'
+    runs-on: [self-hosted, windows]
+    timeout-minutes: 15
+    outputs:
+      published: ${{ steps.run.outputs.published }}
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          clean: true
+
+      - name: Python venv (yt-dlp always latest)
+        run: |
+          if not exist "%RUNNER_TEMP%\rbvenv\Scripts\python.exe" py -3.12 -m venv "%RUNNER_TEMP%\rbvenv"
+          "%RUNNER_TEMP%\rbvenv\Scripts\python.exe" -m pip install -q -r requirements.txt
+          "%RUNNER_TEMP%\rbvenv\Scripts\python.exe" -m pip install -q -U yt-dlp
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Process needs-local issues
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          IG_COOKIES_B64: ${{ secrets.IG_COOKIES_B64 }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PYTHONUTF8: "1"
+        run: '"%RUNNER_TEMP%\rbvenv\Scripts\python.exe" -m recipebot --all-queued --local'
+
+      - name: Clean workspace
+        if: always()
+        shell: powershell
+        run: Get-ChildItem -Force -LiteralPath $env:GITHUB_WORKSPACE | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+  deploy:
+    needs: local
+    if: needs.local.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - run: |
+          mkdir -p _site
+          cp index.html recipes.json _site/
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,20 @@
+Extract the recipe from this Instagram post. Attached: the $media_kind of the post, plus its
+caption below.
+
+Existing cuisine values (reuse one if it fits): $existing_cuisines
+Existing type values (reuse one if it fits): $existing_types
+
+The caption is missing: $missing.
+- Fill ONLY the missing part(s) from the $media_kind, following the media rules (estimated
+  amounts prefixed with "~"; concise imperative steps in the order shown, including visible
+  times and temperatures). Use on-screen text and speech too.
+- Anything the caption DOES contain must be returned exactly as written in the caption
+  (only split into items and strip emojis, bullets, numbering and hashtags; translate
+  faithfully if not English).
+- Use the media and the caption together for name, cuisine, type and time.
+- Set caption_has_ingredients / caption_has_steps from the caption text alone.
+
+CAPTION:
+<<<
+$caption
+>>>

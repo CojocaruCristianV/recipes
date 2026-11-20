@@ -1,0 +1,9 @@
+# All pinned except yt-dlp: Instagram extractors break often, so the workflow
+# runs "pip install -U yt-dlp" on every run.
+google-genai==3.6.1
+apify-client==3.5.1
+pydantic==2.14.4
+requests==2.34.2
+python-dotenv==1.2.4
+tzdata==2026.6
+yt-dlp

@@ -1,0 +1,29 @@
+# recipebot configuration (committed). Secrets live in GitHub Secrets / local .env.
+
+[gemini]
+model = "gemini-2.5-flash"
+temperature = 0.2
+# Media below this total size is sent inline; larger media goes through the File API.
+inline_max_mb = 20
+# Max seconds to wait for an uploaded video to become ACTIVE.
+file_poll_timeout_s = 300
+
+[fetch]
+# Fetcher chain for GitHub-hosted runs. Valid: "apify", "ytdlp".
+order = ["apify", "ytdlp"]
+# Fetcher chain for the optional self-hosted runner (needs-local issues).
+local_order = ["ytdlp"]
+# CONFIG VALUE: Apify actor used to scrape a single post/reel.
+apify_actor = "apify/instagram-scraper"
+apify_timeout_s = 180
+# Media download limits.
+max_media_mb = 200
+max_images = 10
+
+[run]
+# Upper bound of items per run and a time budget that keeps the job under its 15 min timeout.
+# Items not reached stay "queued" and are picked up by the next run.
+max_items_per_run = 15
+run_budget_s = 660
+timezone = "Europe/Bucharest"
+max_push_attempts = 5
