@@ -50,6 +50,7 @@ jobs:
         id: run
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           IG_COOKIES_B64: ${{ secrets.IG_COOKIES_B64 }}
           GITHUB_TOKEN: ${{ github.token }}
           PYTHONUTF8: "1"
@@ -62,7 +63,8 @@ jobs:
 
   deploy:
     needs: local
-    if: needs.local.outputs.published == 'true'
+    if: >-
+      !cancelled() && needs.local.result != 'skipped' && needs.local.outputs.published == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:

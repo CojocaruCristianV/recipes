@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from pathlib import Path
 from string import Template
@@ -20,6 +21,15 @@ class QuotaExceeded(Exception):
 
 class GeminiError(Exception):
     pass
+
+
+class ModelUnavailable(GeminiError):
+    """Every configured model is unknown / retired: stop the run, keep items queued."""
+
+
+_MODEL_GONE_RE = re.compile(
+    r"(model|models/)[^.]*\b(not found|not supported|unsupported|is not available|deprecated|retired)", re.I
+)
 
 
 def _prompt(name: str) -> str:
@@ -41,6 +51,23 @@ class Gemini:
         self.client = genai.Client(api_key=key)
         self.cfg = cfg["gemini"]
         self.system = _prompt("system.txt")
+        # Primary model first, then fallbacks; duplicates removed, order kept.
+        chain = [self.cfg["model"], *(self.cfg.get("fallback_models") or [])]
+        self.models = list(dict.fromkeys(m.strip() for m in chain if m and m.strip()))
+        self._active = 0  # index of the model that last worked (sticky for the run)
+
+    @property
+    def model(self) -> str:
+        return self.models[self._active]
+
+    def list_models(self) -> list[str]:
+        """Model IDs available to this key that support generateContent."""
+        out = []
+        for m in self.client.models.list():
+            actions = getattr(m, "supported_actions", None) or []
+            if not actions or "generateContent" in actions:
+                out.append((m.name or "").removeprefix("models/"))
+        return sorted(x for x in out if x)
 
     # ------------------------------------------------------------------ helpers
 
@@ -60,20 +87,39 @@ class Gemini:
         text = str(err)
         return code == 429 or "RESOURCE_EXHAUSTED" in text or "quota" in text.lower()
 
-    def _generate(self, contents: list) -> Extraction:
-        """Call the model; retry once on invalid output. Raises QuotaExceeded on 429."""
+    @staticmethod
+    def _is_model_gone(err: Exception) -> bool:
+        code = getattr(err, "code", None)
+        msg = getattr(err, "message", None) or str(err)
+        return code == 404 or (code == 400 and bool(_MODEL_GONE_RE.search(msg)))
+
+    def _call(self, contents: list):
+        """generate_content on the active model, moving down the fallback chain if a model is gone."""
         from google.genai import errors
 
-        last: Exception | None = None
-        for _ in range(2):
+        while True:
             try:
-                resp = self.client.models.generate_content(
-                    model=self.cfg["model"], contents=contents, config=self._config()
+                return self.client.models.generate_content(
+                    model=self.model, contents=contents, config=self._config()
                 )
             except errors.APIError as e:
                 if self._is_quota(e):
-                    raise QuotaExceeded(f"Gemini quota: {getattr(e, 'code', '')} {getattr(e, 'status', '')}".strip()) from None
+                    raise QuotaExceeded(f"Gemini quota ({self.model}): {getattr(e, 'code', '')} {getattr(e, 'status', '')}".strip()) from None
+                if self._is_model_gone(e):
+                    if self._active + 1 < len(self.models):
+                        self._active += 1
+                        continue
+                    raise ModelUnavailable(
+                        f"Gemini model(s) unavailable: {', '.join(self.models)}. "
+                        "Set the repo variable GEMINI_MODEL (see: python -m recipebot --list-models)"
+                    ) from None
                 raise GeminiError(f"Gemini API {getattr(e, 'code', '')}: {(getattr(e, 'message', None) or str(e))[:160]}") from None
+
+    def _generate(self, contents: list) -> Extraction:
+        """Call the model; retry once on invalid output. Raises QuotaExceeded / ModelUnavailable."""
+        last: Exception | None = None
+        for _ in range(2):
+            resp = self._call(contents)
             try:
                 parsed = getattr(resp, "parsed", None)
                 if isinstance(parsed, Extraction):

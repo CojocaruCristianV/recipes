@@ -44,7 +44,7 @@ scripts/create-labels.ps1
    - Fork pull request workflows: **Require approval for all outside collaborators**.
    - Actions permissions: **Allow actions created by GitHub** only. All actions used are `actions/*`.
 4. **Labels.** Run `gh auth login`, then `.\scripts\create-labels.ps1`.
-5. **Gemini key.** Go to https://aistudio.google.com/apikey → Create API key. The free tier is enough.
+5. **Gemini key.** Go to https://aistudio.google.com/apikey → Create API key. The free tier is enough. Confirm the model ID with `python -m recipebot --list-models` (see "Changing the Gemini model" below).
 6. **Apify.** Sign up at https://apify.com. Then Console → Settings → API & Integrations → copy the **Personal API token**. The free $5/month of credit covers a few hundred posts. The actor `apify/instagram-scraper` needs no setup.
 7. **Secrets.** Repo → Settings → Secrets and variables → Actions → New repository secret:
    - `GEMINI_API_KEY`
@@ -96,6 +96,25 @@ scripts/create-labels.ps1
 
     You can also keep the runner service set to manual start so it's only online when you want it.
 
+## Changing the Gemini model
+
+The default is `model` in `config.toml` (currently `gemini-3.8-flash`). Overrides, highest priority first:
+
+| Where | Scope | Needs a commit? |
+|---|---|---|
+| Actions → process → Run workflow → `model` input (or `--model X` locally) | that one run | no |
+| Repo → Settings → Secrets and variables → Actions → **Variables** → `GEMINI_MODEL` (or `GEMINI_MODEL=` in `.env` locally) | every run from now on | **no** |
+| `config.toml` → `[gemini] model` | the committed default | yes |
+
+- **To find valid IDs**, run `python -m recipebot --list-models`. It lists every model your key can call, and the configured one is marked.
+- **Backup models:** list them in `fallback_models = ["…"]` in `config.toml`. If a model returns "not found" or "not supported", the code moves to the next one. A quota error (429) does not switch models.
+- **If no model in the list is available:**
+  - the run stops,
+  - the issues stay `queued`,
+  - the job fails with *"Gemini model unavailable"*, so GitHub emails you.
+
+  Set `GEMINI_MODEL` to a valid ID, then use Run workflow, or wait for the next share or the daily run.
+
 ## Local use (debugging)
 
 ```bat
@@ -135,7 +154,8 @@ Re-run an item by adding the **`retry`** label to its issue (failed, needs-revie
 | **Apify actor failing / out of credit** | Comment shows `Apify: ...` and then yt-dlp runs. Check Apify Console → Billing/Usage (free $5 resets monthly). If the actor was renamed or broke, change `apify_actor` in `config.toml`. Errors about credit or token count as "unavailable", not "blocked". |
 | **IG blocking yt-dlp** | yt-dlp is upgraded on every run. If it's still blocked: set `IG_COOKIES_B64` (Netscape cookies.txt from a **throwaway** IG account, `certutil -encode` then strip the header and footer lines, or `[Convert]::ToBase64String(...)`), or enable the self-hosted runner. |
 | **Private / login-required post** | Every fetcher reports a block, so the issue gets `needs-local`. Private posts can't be scraped without cookies. Close the issue or use cookies. |
-| **Gemini 429 / quota** | The item stays `queued` and the run stops. It's processed automatically by the next share, the daily cron, or Run workflow. If it keeps happening, set `model = "gemini-2.5-flash-lite"` in `config.toml`. |
+| **Gemini 429 / quota** | The item stays `queued` and the run stops. It's processed automatically by the next share, the daily cron, or Run workflow. If it keeps happening, set `GEMINI_MODEL` to a lighter model; `--list-models` shows the options. |
+| **Gemini model not found / retired** | The job fails with "Gemini model unavailable" and the issues stay `queued`. Run `python -m recipebot --list-models`, set the repo variable `GEMINI_MODEL` to a listed ID (no commit needed), then Run workflow. You can also add a backup to `fallback_models`. |
 | **Shortcut 401** | The PAT has expired, was revoked, or was pasted wrong. Header must be exactly `Bearer github_pat_…`. |
 | **Shortcut 403 / 404** | The PAT isn't scoped to `recipes`, or Issues isn't set to Read and write. Check the repo name in the URL. A 404 also happens if Issues is disabled in repo Settings. |
 | **Shortcut 422 with labels** | Labels don't exist yet. Run `create-labels.ps1`. |

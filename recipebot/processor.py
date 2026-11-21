@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from pydantic import ValidationError
 
 from . import clean, fetchers, store, urls
-from .gemini import Gemini, GeminiError, QuotaExceeded
+from .gemini import Gemini, GeminiError, ModelUnavailable, QuotaExceeded
 from .models import Extraction, Recipe
 
 STATUS_LABELS = [
@@ -205,6 +205,8 @@ class Processor:
                 return Outcome(item, "ok", recipe, source, fetcher, review_reason=ex.review_reason)
             except QuotaExceeded as e:
                 return Outcome(item, "quota", error=sanitize(e), fetcher=fetcher)
+            except ModelUnavailable as e:
+                return Outcome(item, "model-unavailable", error=sanitize(e), fetcher=fetcher)
             except fetchers.AllBlocked as e:
                 return Outcome(item, "needs-local", error=sanitize(e))
             except NotRecipe as e:
@@ -247,8 +249,8 @@ class Processor:
                     if value not in pool:
                         pool.append(value)
             self._apply_immediate(out)
-            if out.status == "quota":
-                stopped = "quota"
+            if out.status in ("quota", "model-unavailable"):
+                stopped = out.status
                 break
 
         recipes = [o.recipe for o in outcomes if o.status == "ok" and o.recipe]
@@ -269,6 +271,7 @@ class Processor:
                 self._apply_success(o)
 
         summary = {
+            "model": self._gemini.model if self._gemini else self.cfg["gemini"]["model"],
             "processed": len(outcomes),
             "added": len(recipes),
             "published": published,
@@ -288,7 +291,7 @@ class Processor:
         elif o.status == "not-recipe":
             self._set(item, ["not-recipe"], close="not_planned",
                       comment=f"Not a recipe (no ingredients and no method found). {item.canonical}")
-        elif o.status == "quota":
+        elif o.status in ("quota", "model-unavailable"):
             self._set(item, ["queued"])
         elif o.status == "needs-local":
             if self.local:

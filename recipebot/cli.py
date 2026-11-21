@@ -3,6 +3,7 @@
   python -m recipebot --url <link> [--dry-run]
   python -m recipebot --issue N [--dry-run]
   python -m recipebot --all-queued [--dry-run] [--local]
+  python -m recipebot --list-models
 """
 from __future__ import annotations
 
@@ -35,10 +36,13 @@ def build_parser() -> argparse.ArgumentParser:
     src.add_argument("--issue", type=int, help="Process one issue by number")
     src.add_argument("--all-queued", action="store_true",
                      help="Process all open owner issues labelled queued/retry (or needs-local with --local)")
+    src.add_argument("--list-models", action="store_true",
+                     help="Print the Gemini model IDs available to GEMINI_API_KEY and exit")
     p.add_argument("--dry-run", action="store_true", help="Print JSON; no commit, no issue changes")
     p.add_argument("--local", action="store_true", help="Self-hosted mode: needs-local issues, local fetcher order")
     p.add_argument("--force", action="store_true", help="Reprocess even if the URL is already in recipes.json")
     p.add_argument("--config", help="Path to config.toml (default: repo root)")
+    p.add_argument("--model", help="Gemini model for this run (overrides GEMINI_MODEL and config.toml)")
     return p
 
 
@@ -46,12 +50,27 @@ def main(argv: list[str] | None = None) -> int:
     _load_env()
     args = build_parser().parse_args(argv)
     cfg = config_mod.load(args.config)
+    if args.model and args.model.strip():
+        cfg["gemini"]["model"] = args.model.strip()
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         try:
             sys.stdout.reconfigure(encoding="utf-8")
             sys.stderr.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError):
             pass
+
+    if args.list_models:
+        try:
+            from .gemini import Gemini
+
+            current = cfg["gemini"]["model"]
+            for name in Gemini(cfg).list_models():
+                print(f"{name}{'   <- configured' if name == current else ''}")
+            print(f"\nConfigured model: {current}", file=sys.stderr)
+            return 0
+        except Exception as e:  # noqa: BLE001
+            log(status="error", error=sanitize(f"{type(e).__name__}: {e}"))
+            return 2
 
     gh = None
     items: list[Item]
@@ -104,4 +123,10 @@ def main(argv: list[str] | None = None) -> int:
         with open(out, "a", encoding="utf-8") as fh:
             fh.write(f"published={'true' if summary['published'] else 'false'}\n")
             fh.write(f"added={summary['added']}\n")
+    if summary.get("stopped") == "model-unavailable":
+        # Fail the job so GitHub notifies you; issues stay queued for the next run.
+        print(f"::error::Gemini model unavailable ({summary.get('model')}). "
+              "Set the repo variable GEMINI_MODEL; queued issues will be processed on the next run.",
+              file=sys.stderr)
+        return 4
     return 0

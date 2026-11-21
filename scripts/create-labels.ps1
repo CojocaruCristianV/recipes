@@ -1,5 +1,7 @@
 # Creates (or updates) all labels used by recipebot. Requires: gh auth login.
 # Usage: .\scripts\create-labels.ps1 [-Repo CojocaruCristianV/recipes]
+# Uses only core language features (no Write-Host / Write-Error), so it also
+# works when Microsoft.PowerShell.Utility is not loadable.
 param([string]$Repo = "CojocaruCristianV/recipes")
 
 $labels = @(
@@ -17,6 +19,6 @@ $labels = @(
 
 foreach ($l in $labels) {
     gh label create $l.n --repo $Repo --color $l.c --description $l.d --force
-    if ($LASTEXITCODE -ne 0) { Write-Error "Failed to create label $($l.n)"; exit 1 }
+    if ($LASTEXITCODE -ne 0) { throw "Failed to create label $($l.n)" }
 }
-Write-Host "Labels ready on $Repo"
+"Labels ready on $Repo"

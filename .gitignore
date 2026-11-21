@@ -17,3 +17,6 @@ _site/
 *.part
 *.tmp
 .recipes.json.*
+
+# Archives
+*.zip

@@ -1,7 +1,12 @@
 # recipebot configuration (committed). Secrets live in GitHub Secrets / local .env.
 
 [gemini]
-model = "gemini-2.5-flash"
+# Default model. Override without a commit via the repo variable GEMINI_MODEL
+# (or GEMINI_MODEL in .env locally, or the "model" input of Run workflow).
+# List the IDs your key can use: python -m recipebot --list-models
+model = "gemini-3.8-flash"
+# Tried in order if the model above is not found / not supported (not on quota errors).
+fallback_models = []
 temperature = 0.2
 # Media below this total size is sent inline; larger media goes through the File API.
 inline_max_mb = 20

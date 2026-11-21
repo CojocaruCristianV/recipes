@@ -11,6 +11,10 @@ on:
         description: "Optional Instagram URL to process directly"
         required: false
         default: ""
+      model:
+        description: "Optional Gemini model for this run only (default: repo variable GEMINI_MODEL, then config.toml)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -66,6 +70,8 @@ jobs:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
           IG_COOKIES_B64: ${{ secrets.IG_COOKIES_B64 }}
           GITHUB_TOKEN: ${{ github.token }}
+          # Model precedence: Run workflow input > repo variable GEMINI_MODEL > config.toml
+          GEMINI_MODEL: ${{ inputs.model || vars.GEMINI_MODEL }}
           INPUT_URL: ${{ inputs.url }}
         run: |
           if [ -n "$INPUT_URL" ]; then
@@ -77,7 +83,10 @@ jobs:
 
   deploy:
     needs: process
-    if: needs.process.outputs.published == 'true' || github.event_name == 'workflow_dispatch'
+    # Also deploy when the process job failed after publishing (e.g. model became unavailable mid-run).
+    if: >-
+      !cancelled() && needs.process.result != 'skipped' &&
+      (needs.process.outputs.published == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
