@@ -147,6 +147,73 @@ python -m recipebot --all-queued --dry-run
 
 Re-run an item by adding the **`retry`** label to its issue (failed, needs-review or needs-local). To process a link without the phone: Actions → process → Run workflow → `url`.
 
+## Using the site
+
+Open the site from a **Home Screen icon** (Safari → Share → **Add to Home Screen**), not from a Safari tab. It opens full screen, and on iOS it keeps its own saved data (see "Your saved data" below).
+
+### Tabs
+
+| Tab | What it shows |
+|---|---|
+| **Home** | Recently added, Continue cooking (recipes you opened lately; appears after you open one), Quick (30 min or less), **Surprise me** (a random recipe) and **Browse by type** tiles. The gear icon opens Settings. |
+| **Browse** | Every recipe with search, filters and sort. |
+| **Saved** | Recipes you saved with the heart, most recently saved first. |
+| **List** | Your shopping list. The badge shows how many items are still to buy. |
+
+On a phone the tabs sit at the bottom; on a wide screen they move to a bar at the top.
+
+### Search, filters and sort
+
+- **Search** looks at the name, cuisine, type and ingredients. Accents are ignored (`creme` finds *Crème Brûlée*), and every word you type must match. Matches are highlighted, and if a word only matched an ingredient, that ingredient is shown under the card.
+- **Ingredients only** searches the ingredients alone, and every word must appear in an ingredient. `garlic lemon` finds recipes that use both.
+- **Filters** (the sliders button) open a sheet with type, cuisine, time (≤ 15 min, ≤ 30 min, ≤ 1 h, longer), *Saved only*, and *Show recipes that need review*. The number on each chip is how many recipes you would get. Active filters appear as pills under the search bar; tap a pill to remove it.
+- **Sort**: Newest, Oldest, A-Z, Quickest, Fewest ingredients. For sorting and the time filter, the time text is turned into minutes: `1 h 15 min` = 75, `20 min + 24 h` = 1460, and a range like `25-30 min` counts as 30. Recipes with no readable time go last under Quickest.
+- Search, filters and sort are remembered for your next visit.
+
+### Recipe page
+
+- The facts row shows total time, number of ingredients and number of steps.
+- On a phone, Ingredients and Steps are two tabs; on a wide screen they sit side by side.
+- Tap an ingredient to tick it; **Untick all** clears the ticks. Tap a step to highlight where you are. Ticks are kept until you clear them, even after closing the app.
+- Amounts starting with `~` are estimates (usually read from a video) and are shown in grey. `TBD:` marks a missing detail and is highlighted; recipes with gaps also get a *Review* tag.
+- **Save**, **Share** (the iOS share sheet; on a computer the link is copied) and **Instagram** (opens the original post).
+- Each recipe has its own link (`…/recipes/#/r/<code>`), so a shared link opens straight on that recipe.
+- You come back to the same scroll position and tab when you return to a page.
+
+### Keep screen on
+
+The **Keep screen on** switch on the recipe page stops the phone from dimming and locking while that recipe is open.
+
+- It only works on a recipe page and lets go as soon as you leave it.
+- The switch is remembered: once on, it is on for every recipe you open.
+- iOS lets go of it when you switch apps or lock the phone; the site turns it back on when you return to the recipe.
+- If the browser cannot keep the screen on (older iOS versions), the switch is not shown.
+
+### Shopping list
+
+- On a recipe page, **Add all to list** adds every ingredient. After ticking what you already have, **Add unticked (n)** adds only the rest.
+- Items are grouped by recipe. Adding the same recipe again does not create duplicates; an item you had ticked off is unticked instead.
+- Tap an item to tick it off. **Clear checked** removes ticked items. The × next to a recipe removes its whole group.
+- **Copy / Share** sends the items still to buy as plain text: the share sheet on a phone (Notes, Messages, Reminders), the clipboard on a computer.
+
+### Your saved data
+
+Saved recipes, ticks, the shopping list, recently opened recipes and your Browse settings are stored **only on the device and browser you use**, in `localStorage`. Nothing is sent to GitHub, and nothing syncs between devices.
+
+- Data is stored under each recipe's Instagram code, so it survives new recipes being added and `recipes.json` being reordered. If a recipe is removed from `recipes.json`, its saved entry is simply skipped.
+- The site asks the browser to keep this data permanently (`navigator.storage.persist()`). Whether that is granted is up to the browser; it never shows you a prompt, and Safari decides on its own.
+- **Safari clean-up:** in a normal Safari tab, iOS deletes a site's data after **7 days without a visit**. A **Home Screen icon** is treated as an app and does not have that limit, which is why it is the recommended way to use the site. The Home Screen app and Safari keep **separate** data, so what you save in one does not appear in the other.
+- Clearing Safari's website data (Settings → Safari → Clear History and Website Data) or deleting the Home Screen icon also deletes the saved data.
+
+### Backup and moving to another device
+
+Open **Settings** (gear icon on Home):
+
+- **Export** creates `recipes-backup-YYYY-MM-DD.json`. On iPhone the share sheet opens; pick **Save to Files** (or AirDrop it to another device). On a computer the file is downloaded.
+- **Import** reads a backup file and, after you confirm, **replaces** this device's saved data with it, then reloads the page.
+
+To move from Safari to the Home Screen app, or to a new phone: Export on the old one, then Import on the new one. It's worth exporting now and then, especially before clearing Safari data.
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |
