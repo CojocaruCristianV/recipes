@@ -1,1 +1,33 @@
-[]
+[
+  {
+    "name": "Peanut Chilli Noodles",
+    "cuisine": "Asian",
+    "type": "Main",
+    "time": "15 min",
+    "ingredients": [
+      "4 spring onions, finely chopped",
+      "200 g organic noodles",
+      "3 garlic cloves",
+      "2 tablespoons organic crunchy peanut butter",
+      "2 tablespoons organic roasted chopped peanuts",
+      "1/4 cup runny organic tahini",
+      "2 tablespoons organic tamari",
+      "2 tablespoons chilli oil",
+      "1 tablespoon lime juice",
+      "5 tablespoons hot water",
+      "2 tablespoons sesame seeds"
+    ],
+    "steps": [
+      "Cook the noodles according to the package instructions.",
+      "In a large bowl, combine the garlic, peanut butter, chopped peanuts, tahini, tamari, chilli oil, lime juice, water, + sesame seeds.",
+      "Whisk until the sauce is creamy + glossy. The hot water will help the fats from the tahini + peanut butter emulsify perfectly.",
+      "Add the cooked noodles + most of the chopped scallions to the bowl.",
+      "Toss thoroughly so every strand is coated in that elite sauce.",
+      "Garnish with the remaining scallions + an extra sprinkle of sesame seeds.",
+      "Serve immediately."
+    ],
+    "url": "https://www.instagram.com/p/DX7E2yeMsQO/",
+    "needs_review": false,
+    "added": "2026-11-21"
+  }
+]
