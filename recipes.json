@@ -1,5 +1,37 @@
 [
   {
+    "name": "One Pot Spicy Creamy Rigatoni Pasta",
+    "cuisine": "Italian",
+    "type": "Main",
+    "time": "25 min",
+    "ingredients": [
+      "Large pinch of Salt",
+      "Sprinkle of Black Pepper",
+      "Sprinkle of Dried Oregano",
+      "½ tbsp Onion Powder",
+      "½ tbsp Garlic Powder",
+      "½ tbsp Paprika",
+      "½ tbsp Red Chilli Flakes (adjust to your preference)",
+      "Small handful of Fresh Basil ~whole"
+    ],
+    "steps": [
+      "Heat a splash of vegetable oil in a pan over medium heat.",
+      "Add diced shallots and garlic, and sauté until softened.",
+      "Pour in passata.",
+      "Add salt, black pepper, the spice blend, dried oregano, and fresh basil, then stir through.",
+      "Pour in vegetable stock, turn up the heat, and bring to a simmer.",
+      "Add 400 g rigatoni pasta and a sprinkle of salt.",
+      "Cook until the pasta is tender and the sauce has reduced.",
+      "Turn off the heat and stir in mascarpone cheese until creamy.",
+      "Squeeze in fresh lemon juice.",
+      "Grate parmesan cheese over the top.",
+      "Finish with extra chili flakes, lemon zest, and fresh basil."
+    ],
+    "url": "https://www.instagram.com/p/DfqIVR0thF3/",
+    "needs_review": false,
+    "added": "2026-11-22"
+  },
+  {
     "name": "Peanut Chilli Noodles",
     "cuisine": "Asian",
     "type": "Main",
