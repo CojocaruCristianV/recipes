@@ -46,6 +46,28 @@ def clean_line(text: str, numbering: bool = False) -> str:
     return s
 
 
+# Control characters, zero-width spaces and line/paragraph separators in text typed on the site.
+_CTRL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\u200b\u2028\u2029]")
+
+
+def clean_edit(text: str, numbering: bool = False) -> str:
+    """Light cleanup for text typed on the website.
+
+    Like clean_line, but hashtags are kept (a typed "#" is intentional) and control
+    characters and line breaks become spaces, so one text box is always one line.
+    """
+    s = _CTRL_RE.sub(" ", unicodedata.normalize("NFC", str(text or "")))
+    if numbering:
+        s = _KEYCAP_RE.sub("", s)
+    s = _EMOJI_RE.sub(" ", s)
+    s = _WS_RE.sub(" ", s).strip()
+    s = _BULLET_RE.sub("", s).strip()
+    if numbering:
+        s = _NUMBERING_RE.sub("", s).strip()
+        s = _BULLET_RE.sub("", s).strip()
+    return s
+
+
 def clean_lines(items: list[str] | None, numbering: bool = False) -> list[str]:
     out: list[str] = []
     for item in items or []:

@@ -1,7 +1,7 @@
 """Command line entry point.
 
   python -m recipebot --url <link> [--dry-run]
-  python -m recipebot --issue N [--dry-run]
+  python -m recipebot --issue N [--dry-run]       (a shared link, a website edit or a re-read)
   python -m recipebot --all-queued [--dry-run] [--local]
   python -m recipebot --list-models
 """
@@ -123,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         with open(out, "a", encoding="utf-8") as fh:
             fh.write(f"published={'true' if summary['published'] else 'false'}\n")
             fh.write(f"added={summary['added']}\n")
+            fh.write(f"updated={summary.get('updated', 0)}\n")
     if summary.get("stopped") == "model-unavailable":
         # Fail the job so GitHub notifies you; issues stay queued for the next run.
         print(f"::error::Gemini model unavailable ({summary.get('model')}). "

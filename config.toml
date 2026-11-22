@@ -12,6 +12,19 @@ temperature = 0.2
 inline_max_mb = 20
 # Max seconds to wait for an uploaded video to become ACTIVE.
 file_poll_timeout_s = 300
+# Videos always go through the File API (uploaded once, reused by every retry).
+upload_video = true
+# When Gemini is busy (503 "high demand", 5xx, timeout) wait this long, then try again.
+# One entry per retry. All within the same run; afterwards the link stays queued.
+busy_waits_s = [30, 60, 120]
+# A single request that takes longer than this counts as busy and is retried.
+request_timeout_s = 240
+# Busy retries of a video request use low media resolution (about 4x fewer tokens).
+light_retry = true
+# How much the model "thinks" before answering: MINIMAL, LOW, MEDIUM, HIGH or "" (model default).
+# Extraction needs little reasoning; LOW is faster and less likely to hit busy errors.
+# Switched off automatically if the model does not support it.
+thinking_level = "LOW"
 
 [fetch]
 # Fetcher chain for GitHub-hosted runs. Valid: "apify", "ytdlp".
@@ -30,5 +43,7 @@ max_images = 10
 # Items not reached stay "queued" and are picked up by the next run.
 max_items_per_run = 15
 run_budget_s = 660
+# Seconds after the start when Gemini waits / calls stop, so publishing always fits the 15 min job.
+hard_deadline_s = 720
 timezone = "Europe/Bucharest"
 max_push_attempts = 5

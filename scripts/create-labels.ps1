@@ -6,6 +6,8 @@ param([string]$Repo = "CojocaruCristianV/recipes")
 
 $labels = @(
     @{ n = "recipe";       c = "5319e7"; d = "Recipe link from the iOS Shortcut" },
+    @{ n = "edit";         c = "0075ca"; d = "Change made from the website" },
+    @{ n = "reread";       c = "7057ff"; d = "Re-read the recipe from the video (website)" },
     @{ n = "queued";       c = "fbca04"; d = "Waiting to be processed" },
     @{ n = "retry";        c = "f9d0c4"; d = "Add to re-queue a failed or reviewed item" },
     @{ n = "processing";   c = "1d76db"; d = "Being processed" },

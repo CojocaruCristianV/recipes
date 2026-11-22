@@ -15,6 +15,11 @@ DEFAULTS: dict = {
         "temperature": 0.2,
         "inline_max_mb": 20,
         "file_poll_timeout_s": 300,
+        "upload_video": True,
+        "busy_waits_s": [30, 60, 120],
+        "request_timeout_s": 240,
+        "light_retry": True,
+        "thinking_level": "LOW",
     },
     "fetch": {
         "order": ["apify", "ytdlp"],
@@ -27,6 +32,7 @@ DEFAULTS: dict = {
     "run": {
         "max_items_per_run": 15,
         "run_budget_s": 660,
+        "hard_deadline_s": 720,
         "timezone": "Europe/Bucharest",
         "max_push_attempts": 5,
     },

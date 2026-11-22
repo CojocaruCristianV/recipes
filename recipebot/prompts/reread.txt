@@ -1,0 +1,21 @@
+Re-read this recipe from scratch. Attached: the $media_kind of the Instagram post, plus its
+caption below. The current version of the recipe is incomplete or wrong, so do not rely on it.
+
+Return the COMPLETE ingredient list and the COMPLETE method:
+- Where the caption covers an ingredient or a step, use the caption's wording exactly as
+  written (only split it into items and strip emojis, bullets, numbering and hashtags;
+  translate faithfully if not English).
+- Add everything else that the $media_kind shows or says (on-screen text and speech too),
+  following the media rules: estimated amounts prefixed with "~", concise imperative steps
+  in the order shown, including visible or spoken times and temperatures.
+- Keep the order of the method as shown in the $media_kind. Merge caption and media into one
+  list without duplicates.
+- Mark anything that cannot be identified with "TBD:" as described in the review rules.
+- Also fill name, cuisine, type and time (they are kept from the current recipe, but must be
+  valid). Existing cuisine values: $existing_cuisines. Existing type values: $existing_types.
+- Set caption_has_ingredients / caption_has_steps from the caption text alone.
+
+CAPTION:
+<<<
+$caption
+>>>

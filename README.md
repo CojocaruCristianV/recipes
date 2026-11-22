@@ -8,22 +8,26 @@ iOS Share Sheet -> GitHub Issue (queue) -> Actions: Apify / yt-dlp -> Gemini
   -> recipes.json commit -> Pages deploy -> issue comment + label + close
 ```
 
+Edits and "Re-read from video" on the site use the same queue: the site opens an `edit` or
+`reread` issue, and the bot updates the recipe in place.
+
 ## Folder structure
 
 ```
 .github/workflows/process.yml   main pipeline (issues / daily cron / manual)
 .github/workflows/local.yml     optional self-hosted fallback (off by default)
 recipebot/                      Python package (python -m recipebot)
-  cli.py        CLI: --url, --issue, --all-queued, --dry-run, --local, --force
-  processor.py  per-item flow, retries, issue outcomes, publishing
+  cli.py        CLI: --url, --issue (also edit / re-read issues), --all-queued, --dry-run, --local, --force
+  processor.py  per-item flow (new recipe, edit, re-read), retries, issue outcomes, publishing
+  edits.py      website edits: request parsing, conflict check, validation, change summary
   fetchers.py   Apify -> yt-dlp chain, block detection
   gemini.py     google-genai calls, JSON schema, inline vs File API, 429 handling
   models.py     pydantic: model output + strict recipes.json record
   clean.py      emoji/bullet/hashtag/numbering cleanup, cuisine/type normalization
-  store.py      merge, atomic write, git commit/push with conflict retry
+  store.py      merge, in-place updates, atomic write, git commit/push with conflict retry
   urls.py       URL extraction + canonicalization (/reel/, /reels/, /p/ -> /p/<code>/)
   gh.py         GitHub REST helpers
-  prompts/      system.txt, caption.txt, media.txt  (edit freely; $vars are substituted)
+  prompts/      system.txt, caption.txt, media.txt, reread.txt  (edit freely; $vars are substituted)
 config.toml     model, fetcher order, Apify actor, limits
 index.html      the website (static, no dependencies)
 recipes.json    the data (starts as [])
@@ -43,7 +47,7 @@ scripts/create-labels.ps1
    - Workflow permissions: **Read repository contents** (each workflow grants its own permissions).
    - Fork pull request workflows: **Require approval for all outside collaborators**.
    - Actions permissions: **Allow actions created by GitHub** only. All actions used are `actions/*`.
-4. **Labels.** Run `gh auth login`, then `.\scripts\create-labels.ps1`.
+4. **Labels.** Run `gh auth login`, then `.\scripts\create-labels.ps1`. If you set this up before editing existed, run it again: it adds the `edit` and `reread` labels. It is safe to re-run, since existing labels are only updated, never deleted.
 5. **Gemini key.** Go to https://aistudio.google.com/apikey → Create API key. The free tier is enough. Confirm the model ID with `python -m recipebot --list-models` (see "Changing the Gemini model" below).
 6. **Apify.** Sign up at https://apify.com. Then Console → Settings → API & Integrations → copy the **Personal API token**. The free $5/month of credit covers a few hundred posts. The actor `apify/instagram-scraper` needs no setup.
 7. **Secrets.** Repo → Settings → Secrets and variables → Actions → New repository secret:
@@ -56,6 +60,8 @@ scripts/create-labels.ps1
    - Repository access: **Only select repositories** → `recipes`
    - Permissions: **Issues: Read and write** (Metadata read-only is added automatically)
    - Expiration: the longest available. Set a calendar reminder to rotate it.
+
+   The site uses the same token for edits and re-reads. It asks for it the first time you send one (see "Editing a recipe").
 9. **iOS Shortcut** (Shortcuts app → + → name it **Save Recipe**):
    1. Tap **ⓘ** → turn on **Show in Share Sheet**. Receive: **URLs** and **Text** only. If there's no input: **Stop and Respond**.
    2. **Text** action, containing the **Shortcut Input** variable.
@@ -145,7 +151,7 @@ python -m recipebot --all-queued --dry-run
 3. **Check the queue.** Repo → Actions → **process** should be running. Within about 2 minutes the issue gets a summary comment, the `done` label, and is closed.
 4. **Check the site.** Open `https://cojocarucristianv.github.io/recipes/`. The page loads `recipes.json` with `no-store` and a timestamp, and reloads it whenever you come back to the tab, so a normal refresh is enough. If a new `index.html` doesn't show up (Pages' CDN caches it for about 10 minutes), use `…/recipes/?v=2` or Settings → Safari → Advanced → Website Data → remove `github.io`. Optionally use Share → **Add to Home Screen** to get an app-style icon.
 
-Re-run an item by adding the **`retry`** label to its issue (failed, needs-review or needs-local). To process a link without the phone: Actions → process → Run workflow → `url`.
+Re-run an item by adding the **`retry`** label to its issue (failed, needs-review or needs-local). In the GitHub app: open the issue → **Labels** → tick `retry`; the bot starts within a minute. Every failure comment says which step failed (fetching the post, reading the caption, downloading or reading the video) and repeats these instructions. To process a link without the phone: Actions → process → Run workflow → `url`.
 
 ## Using the site
 
@@ -155,7 +161,7 @@ Open the site from a **Home Screen icon** (Safari → Share → **Add to Home Sc
 
 | Tab | What it shows |
 |---|---|
-| **Home** | Recently added, Continue cooking (recipes you opened lately; appears after you open one), Quick (30 min or less), **Surprise me** (a random recipe) and **Browse by type** tiles. The gear icon opens Settings. |
+| **Home** | **In the spotlight** (6 random recipes, the same all day; **Shuffle** picks others), Continue cooking (recipes you opened lately; appears after you open one), Recently added, **Browse by cuisine** tiles and **Types** chips. Tapping a tile or chip opens Browse filtered to it. The gear icon opens Settings. |
 | **Browse** | Every recipe with search, filters and sort. |
 | **Saved** | Recipes you saved with the heart, most recently saved first. |
 | **List** | Your shopping list. The badge shows how many items are still to buy. |
@@ -166,17 +172,19 @@ On a phone the tabs sit at the bottom; on a wide screen they move to a bar at th
 
 - **Search** looks at the name, cuisine, type and ingredients. Accents are ignored (`creme` finds *Crème Brûlée*), and every word you type must match. Matches are highlighted, and if a word only matched an ingredient, that ingredient is shown under the card.
 - **Ingredients only** searches the ingredients alone, and every word must appear in an ingredient. `garlic lemon` finds recipes that use both.
-- **Filters** (the sliders button) open a sheet with type, cuisine, time (≤ 15 min, ≤ 30 min, ≤ 1 h, longer), *Saved only*, and *Show recipes that need review*. The number on each chip is how many recipes you would get. Active filters appear as pills under the search bar; tap a pill to remove it.
-- **Sort**: Newest, Oldest, A-Z, Quickest, Fewest ingredients. For sorting and the time filter, the time text is turned into minutes: `1 h 15 min` = 75, `20 min + 24 h` = 1460, and a range like `25-30 min` counts as 30. Recipes with no readable time go last under Quickest.
+- **Filters** (the sliders button) open a sheet with cuisine, type, *Saved only*, and *Show recipes that need review*. The number on each chip is how many recipes you would get. Active filters appear as pills under the search bar; tap a pill to remove it.
+- **Sort**: Newest, Oldest, A-Z, Fewest ingredients.
 - Search, filters and sort are remembered for your next visit.
 
 ### Recipe page
 
-- The facts row shows total time, number of ingredients and number of steps.
+- Covers are coloured by **cuisine** (Italian red, French indigo, Greek blue, Mexican green, Indian saffron...) with a cuisine icon. A cuisine without its own colour gets a fixed colour worked out from its name, plus the recipe type's icon.
+- The facts row shows the estimated time (`~1 h 15 min`), number of ingredients and number of steps. Times come from captions or are guessed from the video, so they are shown with `~`.
 - On a phone, Ingredients and Steps are two tabs; on a wide screen they sit side by side.
 - Tap an ingredient to tick it; **Untick all** clears the ticks. Tap a step to highlight where you are. Ticks are kept until you clear them, even after closing the app.
 - Amounts starting with `~` are estimates (usually read from a video) and are shown in grey. `TBD:` marks a missing detail and is highlighted; recipes with gaps also get a *Review* tag.
 - **Save**, **Share** (the iOS share sheet; on a computer the link is copied) and **Instagram** (opens the original post).
+- **Edit** and **Re-read from video**: see below.
 - Each recipe has its own link (`…/recipes/#/r/<code>`), so a shared link opens straight on that recipe.
 - You come back to the same scroll position and tab when you return to a page.
 
@@ -196,9 +204,54 @@ The **Keep screen on** switch on the recipe page stops the phone from dimming an
 - Tap an item to tick it off. **Clear checked** removes ticked items. The × next to a recipe removes its whole group.
 - **Copy / Share** sends the items still to buy as plain text: the share sheet on a phone (Notes, Messages, Reminders), the clipboard on a computer.
 
+### Editing a recipe
+
+Tap **Edit** on a recipe page.
+
+- Every ingredient and step becomes a text box. Use the arrows to move a line up or down, the bin to delete it, and **Add ingredient** / **Add step** for a new line.
+  - Return in a box splits the line at the cursor.
+  - Pasting several lines at once makes one line each.
+  - Empty boxes are dropped.
+- **Name**, **cuisine**, **type** and **time** can be changed too. Cuisine and type suggest the values already in the library.
+- **Mark as reviewed** appears when the recipe has the *Review* tag; turning it on removes the tag. This works even if some lines still contain `TBD:`, and the summary warns you about them.
+- **Save** shows **Check your changes**: what was changed, added, removed or moved. Nothing is sent yet. **Keep editing** goes back, and **Send** creates an `edit` issue.
+- **Cancel** leaves edit mode and asks first if you changed something. You can go to other pages while editing; the draft is still there when you come back. Reloading or closing the site discards it (the browser asks first).
+
+After you send, the recipe shows **Edit sent (#N)** with a link to the issue. About a minute later the bot has checked the change, updated the recipe in place (same link, same date), committed it and rebuilt the site. The note then disappears by itself and a message says the edit **is live**. The issue is closed with a list of the changes.
+
+- **If the recipe changed since you started editing** (another edit, or a re-read that finished meanwhile), the bot doesn't overwrite it. The issue is closed with *"Edit not applied"*: reload the recipe and make the edit again. The edit page also warns you if it notices the change before you send.
+- **Undo:** every change is a commit. Open `recipes.json` on GitHub and tap **History**; the issue comment links to the commit. Copy the old lines back with another edit, or revert the commit on GitHub.
+
+#### The GitHub token
+
+The first time you send an edit or a re-read, a sheet asks for a GitHub token. Either:
+
+- **Use your Shortcut's token:** open Shortcuts, then **Save Recipe**, then the **Get Contents of URL** action, then **Headers**. Copy the `Authorization` value without `Bearer ` (pasting it with `Bearer ` also works).
+- **Or make a new one:** on GitHub go to Settings, then Developer settings, then **Fine-grained tokens**. Give it access to only `recipes` and set **Issues** to **Read and write**.
+
+The site checks the token once with GitHub and saves it **on this device only**. The Home Screen app and Safari keep separate data, so each asks once.
+
+- It is **never** part of an Export, and Import leaves it alone.
+- **Settings → Editing → Forget token** removes it from the device. If GitHub later refuses it (expired or revoked), the site forgets it and asks again.
+
+**About the shared address:** every GitHub Pages site on your account lives at `cojocarucristianv.github.io`, so any other Pages site you publish there could read the token. The token can only create issues in `recipes`, so the worst case is spam issues. If you publish other Pages sites, consider a separate token just for the site.
+
+### Re-read from video
+
+**Re-read from video** on a recipe page asks the bot to read the post again: the caption and the video (or images) together, asking for the *complete* ingredient and step lists.
+
+- The caption's wording is kept where the caption covers an item. Details seen only in the video are added as `~` estimates, and gaps are marked `TBD:`.
+- **Only the ingredients and steps are replaced.** Name, cuisine, type, time and date stay.
+- **Changes you made to the ingredients or steps by hand are overwritten.** A confirmation says so before anything is sent.
+- The note **Re-read requested (#N)** shows until the new version is live. The issue comment lists the new ingredients and steps; the old version is in `recipes.json` → History.
+- If the post has no video or images, the issue is closed with *"Nothing to re-read"* and the recipe is not changed.
+- A re-read needs Gemini. If Gemini is busy or out of quota, the request stays `queued` and runs later, like a new recipe. Edits never need Gemini, so they still go through.
+
 ### Your saved data
 
 Saved recipes, ticks, the shopping list, recently opened recipes and your Browse settings are stored **only on the device and browser you use**, in `localStorage`. Nothing is sent to GitHub, and nothing syncs between devices.
+
+The only exception is what you send yourself with **Edit** or **Re-read from video**: those create issues in the repo. The GitHub token they use is stored under its own key (`recipes-token`), separate from the rest, and it is never exported.
 
 - Data is stored under each recipe's Instagram code, so it survives new recipes being added and `recipes.json` being reordered. If a recipe is removed from `recipes.json`, its saved entry is simply skipped.
 - The site asks the browser to keep this data permanently (`navigator.storage.persist()`). Whether that is granted is up to the browser; it never shows you a prompt, and Safari decides on its own.
@@ -211,6 +264,7 @@ Open **Settings** (gear icon on Home):
 
 - **Export** creates `recipes-backup-YYYY-MM-DD.json`. On iPhone the share sheet opens; pick **Save to Files** (or AirDrop it to another device). On a computer the file is downloaded.
 - **Import** reads a backup file and, after you confirm, **replaces** this device's saved data with it, then reloads the page.
+- Neither touches the GitHub token: it is not in the backup, and Import keeps the one already on the device.
 
 To move from Safari to the Home Screen app, or to a new phone: Export on the old one, then Import on the new one. It's worth exporting now and then, especially before clearing Safari data.
 
@@ -221,6 +275,7 @@ To move from Safari to the Home Screen app, or to a new phone: Export on the old
 | **Apify actor failing / out of credit** | Comment shows `Apify: ...` and then yt-dlp runs. Check Apify Console → Billing/Usage (free $5 resets monthly). If the actor was renamed or broke, change `apify_actor` in `config.toml`. Errors about credit or token count as "unavailable", not "blocked". |
 | **IG blocking yt-dlp** | yt-dlp is upgraded on every run. If it's still blocked: set `IG_COOKIES_B64` (Netscape cookies.txt from a **throwaway** IG account, `certutil -encode` then strip the header and footer lines, or `[Convert]::ToBase64String(...)`), or enable the self-hosted runner. |
 | **Private / login-required post** | Every fetcher reports a block, so the issue gets `needs-local`. Private posts can't be scraped without cookies. Close the issue or use cookies. |
+| **Gemini busy (503 "high demand", 5xx, timeout)** | The bot waits 30 s, 60 s, then 120 s and tries again, all in the same run, reusing the downloaded video. Retries send the video at low resolution (about 4x fewer tokens). If the caption already had part of the recipe, that part is published with the rest marked `TBD` and the `needs-review` label. Otherwise the issue goes back to `queued` with a comment, the run stops, and the next share or the daily run tries again; add `retry` to try sooner. Waits and settings are under `[gemini]` in `config.toml` (`busy_waits_s`, `light_retry`, `thinking_level`). |
 | **Gemini 429 / quota** | The item stays `queued` and the run stops. It's processed automatically by the next share, the daily cron, or Run workflow. If it keeps happening, set `GEMINI_MODEL` to a lighter model; `--list-models` shows the options. |
 | **Gemini model not found / retired** | The job fails with "Gemini model unavailable" and the issues stay `queued`. Run `python -m recipebot --list-models`, set the repo variable `GEMINI_MODEL` to a listed ID (no commit needed), then Run workflow. You can also add a backup to `fallback_models`. |
 | **Shortcut 401** | The PAT has expired, was revoked, or was pasted wrong. Header must be exactly `Bearer github_pat_…`. |
@@ -230,4 +285,13 @@ To move from Safari to the Home Screen app, or to a new phone: Export on the old
 | **Pages not updating** | Pages source must be **GitHub Actions**. Check the `deploy` job in Actions (the `github-pages` environment must allow `main`). The CDN can take up to 10 minutes for `index.html`. |
 | **Workflow not triggering** | Issues opened by someone other than the repo owner are skipped by design. Actions must be enabled, and the workflow file must be on the default branch. GitHub turns off cron after 60 days without repo activity; shares still trigger runs, and you can re-enable it on the Actions tab. |
 | **Stuck in `processing`** | A run crashed or timed out. The next run picks up `processing` issues automatically, or add `retry`. |
-| **Wrong cuisine / type** | Edit `recipes.json` directly (keep the format). Future runs reuse whatever values are there. Prompts are in `recipebot/prompts/`. |
+| **Wrong cuisine / type** | Use **Edit** on the recipe page, or edit `recipes.json` directly (keep the format). Future runs reuse whatever values are there. Prompts are in `recipebot/prompts/`. |
+| **Site: "GitHub did not accept the token"** (401) | The token expired, was revoked or was pasted wrong. The site forgets it and asks again; your edit is kept. Paste the current token (the same one as in your Shortcut, if you rotated it there). |
+| **Site: "The token cannot create issues"** (403 / 404) | The token isn't scoped to `recipes`, or Issues isn't set to Read and write. A 404 also happens if Issues is disabled in repo Settings. |
+| **Site: "GitHub refused the request"** (422) | Usually the `edit` / `reread` labels don't exist yet. Run `create-labels.ps1` again. |
+| **Site: "Not sent"** | The message says why (offline, GitHub error). Your changes are kept, so tap Send again. |
+| **"Edit not applied: changed since you started editing"** | Someone (or a re-read) changed the recipe after you opened Edit. Nothing was overwritten. Reload the recipe and make the edit again. |
+| **"Could not apply this edit"** | The edit was refused as invalid: an empty name, no ingredients or steps left, a line over 500 characters, or a recipe that was removed. Fix it and send again. |
+| **"Nothing to re-read"** | The post has no video or images (or they couldn't be found), so there was nothing to add. The recipe is unchanged; use Edit instead. |
+| **Re-read stays `queued`** | Gemini was busy or out of quota. It runs with the next share or the daily run; add `retry` to try sooner. |
+| **Edit sent, but the note doesn't go away** | Open the issue (the link in the note) to see what happened. The note stops waiting after 30 minutes. |
