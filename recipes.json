@@ -1,5 +1,29 @@
 [
   {
+    "name": "Kewpie Mayo",
+    "cuisine": "Asian",
+    "type": "Condiment",
+    "time": "5 min",
+    "ingredients": [
+      "3 cups neutral oil",
+      "7 egg yolks",
+      "~1 dash sugar",
+      "3 tbsp rice wine vinegar",
+      "3 tbsp lemon juice",
+      "3 tsp Dijon mustard",
+      "~1/4 tsp MSG"
+    ],
+    "steps": [
+      "Add the neutral oil, egg yolks, sugar, rice wine vinegar, lemon juice, Dijon mustard, and MSG to a tall jar.",
+      "Place an immersion blender at the bottom of the jar directly over the yolks and seasonings.",
+      "Blend on medium-low for a few seconds until the base begins to emulsify and thicken.",
+      "Increase the blender speed and slowly pull the immersion blender upward to incorporate the remaining oil until completely smooth and thick."
+    ],
+    "url": "https://www.instagram.com/p/Df7vulgTtb0/",
+    "needs_review": false,
+    "added": "2026-11-22"
+  },
+  {
     "name": "One Pot Spicy Creamy Rigatoni Pasta",
     "cuisine": "Italian",
     "type": "Main",
