@@ -3,6 +3,31 @@
     "name": "Kewpie Mayo",
     "cuisine": "Asian",
     "type": "Condiment",
+    "time": "10 min",
+    "ingredients": [
+      "3 Egg Yolks",
+      "Splash Rice Vinegar",
+      "1/2 lemon Lemon Juice",
+      "1 tsp Dijon Mustard",
+      "1.25 cups Neutral Oil",
+      "Pinch Salt",
+      "Pinch MSG",
+      "Pinch Sugar"
+    ],
+    "steps": [
+      "Bring the eggs to room temperature before separating the yolks & whites.",
+      "Add the yolks to a mason jar along with a splash of rice vinegar, the juice of 1/2 a lemon, a heaping tsp of dijon mustard, and pinches of salt, MSG, and sugar.",
+      "Add just over a cup of neutral oil (avocado or similar) to the jar, then use an immersion blender to whip until smooth and creamy— about a minute or so.",
+      "Use immediately, or store in an airtight container in the fridge up to a week."
+    ],
+    "url": "https://www.instagram.com/p/DeKx80HhXjX/",
+    "needs_review": false,
+    "added": "2026-11-22"
+  },
+  {
+    "name": "Kewpie Mayo",
+    "cuisine": "Asian",
+    "type": "Condiment",
     "time": "5 min",
     "ingredients": [
       "3 cups neutral oil",
