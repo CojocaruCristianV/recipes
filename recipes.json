@@ -1,5 +1,131 @@
 [
   {
+    "name": "Science Based Fudgy Crackle Top Brownies",
+    "cuisine": "Various",
+    "type": "Dessert",
+    "time": "2 h 35 min",
+    "ingredients": [
+      "~170 g butter",
+      "~200 g dark chocolate (70%), chopped",
+      "~30 g cocoa powder",
+      "~1/2 tsp salt",
+      "~3 large eggs",
+      "~150 g granulated white sugar",
+      "~100 g brown sugar",
+      "~1 tsp vanilla extract",
+      "~85 g flour",
+      "~100 g dark chocolate chunks"
+    ],
+    "steps": [
+      "Melt the butter and chopped dark chocolate in a bowl set over a pot of boiling water.",
+      "Remove from the heat source and whisk in the cocoa powder and salt to bloom.",
+      "In a separate bowl, add the eggs, white sugar, brown sugar, and vanilla extract.",
+      "Whisk on high speed with a hand mixer until thick and doubled in volume.",
+      "Pour in the melted chocolate mixture while whisking on low speed until combined.",
+      "Add the flour and dark chocolate chunks, then fold with a spatula until no streaks of flour remain.",
+      "Pour the batter into a parchment-lined square baking tin and nudge it to the edges without spreading the top smooth.",
+      "Bake at 140°C for 34 minutes, or until the internal temperature reaches 88°C.",
+      "Remove from the oven and leave to cool and chill for 2 hours until the internal temperature drops to 30°C.",
+      "Slice into squares and serve."
+    ],
+    "url": "https://www.instagram.com/p/DehXW3UB46e/",
+    "needs_review": false,
+    "added": "2026-11-23"
+  },
+  {
+    "name": "Mexican Street Corn Salad",
+    "cuisine": "Mexican",
+    "type": "Salad",
+    "time": "20 min",
+    "ingredients": [
+      "3 cans of sweet corn, drained",
+      "A drizzle of olive oil",
+      "Salt, to taste",
+      "Black pepper, to taste",
+      "Paprika, to taste",
+      "1 small red onion, finely chopped",
+      "2 jalapeños, finely chopped",
+      "1 bunch of fresh cilantro, finely chopped",
+      "2 garlic cloves, minced",
+      "Mayonnaise, to taste",
+      "Juice of 1 lime",
+      "Crumbled Cotija cheese, to taste"
+    ],
+    "steps": [
+      "Char the corn: Heat a drizzle of olive oil in a large pan over medium-high heat. Add the drained corn and season with salt, black pepper, and paprika. Cook, stirring occasionally, until the corn is golden with slightly charred spots.",
+      "Let it cool: Remove the corn from the heat and allow it to cool before assembling the salad.",
+      "Add the fresh ingredients: Transfer the cooled corn to a large bowl. Add the finely chopped red onion, jalapeños, and cilantro.",
+      "Make it creamy: Add the minced garlic, mayonnaise, freshly squeezed lime juice, and crumbled Cotija cheese.",
+      "Mix and serve: Toss everything together until well combined. Taste and adjust the seasoning as needed."
+    ],
+    "url": "https://www.instagram.com/p/Demoehfs6q0/",
+    "needs_review": false,
+    "added": "2026-11-23"
+  },
+  {
+    "name": "Moldovan Baba Neagra",
+    "cuisine": "Moldovan",
+    "type": "Dessert",
+    "time": "4 h",
+    "ingredients": [
+      "5 eggs",
+      "1 pinch salt",
+      "1 tsp vanilla",
+      "150g (3/4 cup) sugar",
+      "150g (1 cup) flour",
+      "100ml (1/3 cup+1 tbsp) neutral oil",
+      "125g (1/2 cup) kefir or buttermilk",
+      "100g milk (little less than 1/2 cup)",
+      "1 tbsp baking soda",
+      "1 tbsp vodka or other high proof liquor"
+    ],
+    "steps": [
+      "THOROUGHLY grease and flour a baking dish",
+      "Whisk eggs, sugar, vanilla, and salt until frothy at the top",
+      "In another bowl, add each of the remaining ingredients in order except the vodka, whisking thoroughly between each.",
+      "After the baking soda let it sit for about 5 mins to get bubbly",
+      "Whisk the two mixtures and vodka together until uniform",
+      "Pour batter into the prepared pan and wrap it fully with foil so that it is as airtight as possible",
+      "Bake for 1.5 hours at 200c/390f, then 1.5 hours more at 150c/300f. Don’t open the oven",
+      "Let cool for at least an hour as it will be very hot",
+      "Enjoy this unique confection!"
+    ],
+    "url": "https://www.instagram.com/p/Dez1SI5PYQM/",
+    "needs_review": false,
+    "added": "2026-11-23"
+  },
+  {
+    "name": "One Pan Banoffee Upside Down Cake",
+    "cuisine": "British",
+    "type": "Dessert",
+    "time": "50 min",
+    "ingredients": [
+      "75g Butter",
+      "100g Light Brown Sugar",
+      "3 Bananas, sliced lengthways",
+      "150g Unsalted Butter, softened",
+      "150g Caster Sugar",
+      "150g Self Raising Flour",
+      "3 Eggs",
+      "1 Tsp Vanilla Extract",
+      "2 Tbsp Milk"
+    ],
+    "steps": [
+      "Make your cake batter by adding your butter and sugar to a bowl and whisking until the butter turns pale and fluffy (electric whisk or mixer would be most ideal)",
+      "Add your eggs, milk and vanilla extract and whisk through",
+      "Go in with your flour and fold through until there’s no more white flour bits",
+      "For the banoffee, in a pan over a medium heat, add your butter and melt until foamy",
+      "Add in your light brown sugar and mix through until combined. Add a splash of boiling water and whisk vigorously if it splits",
+      "Turn the heat to low and do your bananas carefully cut side down",
+      "Turn the heat off and gently spoon your cake batter over the top being careful not to mix it with the caramel",
+      "Get it in the oven for 35 minutes at 170oC",
+      "Flip out onto a plate and serve up with a big dollop of ice cream"
+    ],
+    "url": "https://www.instagram.com/p/De9w1rFOqHp/",
+    "needs_review": false,
+    "added": "2026-11-23"
+  },
+  {
     "name": "Kewpie Mayo",
     "cuisine": "Asian",
     "type": "Condiment",
