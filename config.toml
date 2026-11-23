@@ -5,8 +5,13 @@
 # (or GEMINI_MODEL in .env locally, or the "model" input of Run workflow).
 # List the IDs your key can use: python -m recipebot --list-models
 model = "gemini-3.8-flash"
-# Tried in order if the model above is not found / not supported (not on quota errors).
-fallback_models = []
+# Backup models, tried in this order (newest first, lite last) when the current model
+#   - has used up its quota (429): it is skipped for the rest of the run,
+#   - is not found / not supported: it is skipped for the rest of the run,
+#   - is busy (503, 5xx, timeout): the next one is tried at once; busy_waits_s only
+#     starts once every model in the list was busy.
+# The model that answers stays in use for the rest of the run.
+fallback_models = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"]
 temperature = 0.2
 # Media below this total size is sent inline; larger media goes through the File API.
 inline_max_mb = 20
@@ -14,8 +19,9 @@ inline_max_mb = 20
 file_poll_timeout_s = 300
 # Videos always go through the File API (uploaded once, reused by every retry).
 upload_video = true
-# When Gemini is busy (503 "high demand", 5xx, timeout) wait this long, then try again.
-# One entry per retry. All within the same run; afterwards the link stays queued.
+# When every model is busy (503 "high demand", 5xx, timeout) wait this long, then try again
+# from the top of the list. One entry per round. All within the same run; afterwards the
+# link stays queued.
 busy_waits_s = [30, 60, 120]
 # A single request that takes longer than this counts as busy and is retried.
 request_timeout_s = 240

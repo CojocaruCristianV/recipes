@@ -98,6 +98,7 @@ class Outcome:
     review_reason: str = ""
     step: str = ""
     retries: int = 0  # Gemini busy retries used for this item
+    model: str = ""  # Gemini model(s) that answered for this item, e.g. "gemini-3.7-flash"
     media_mb: float | None = None
     kind: str = "add"
     # Edit / re-read: the change to publish, the record before and after, notes for the comment.
@@ -287,7 +288,7 @@ class Processor:
 
         self._set(item, ["processing"])
         if self._gemini is not None:
-            self._gemini.busy_retries = 0
+            self._gemini.start_item()
 
         def run(work: _Work) -> Outcome:
             ex, source, ci, cs = self._extract(work, cuisines, types_)
@@ -342,7 +343,7 @@ class Processor:
                            error="This recipe is no longer in the library.")
         self._set(item, ["processing"])
         if self._gemini is not None:
-            self._gemini.busy_retries = 0
+            self._gemini.start_item()
 
         def run(work: _Work) -> Outcome:
             post = work.post
@@ -388,8 +389,10 @@ class Processor:
             return self._attempts(item, _Work(tmp=Path(tmp)), run, kind="reread")
 
     def _out(self, item: Item, work: _Work, status: str, **kw) -> Outcome:
-        retries = self._gemini.busy_retries if self._gemini else 0
-        return Outcome(item, status, step=work.step, retries=retries, media_mb=work.media_mb,
+        g = self._gemini
+        retries = g.busy_retries if g else 0
+        model = " + ".join(g.used) if g else ""
+        return Outcome(item, status, step=work.step, retries=retries, model=model, media_mb=work.media_mb,
                        fetcher=work.post.fetcher if work.post else "", **kw)
 
     def _attempts(self, item: Item, work: _Work, run: Callable[[_Work], Outcome], kind: str = "add") -> Outcome:
@@ -455,7 +458,7 @@ class Processor:
             outcomes.append(out)
             log(issue=item.number, kind=item.kind if item.kind != "add" else None,
                 url=item.canonical or item.url, status=out.status,
-                source=out.source, fetcher=out.fetcher, step=out.step or None,
+                source=out.source, fetcher=out.fetcher, model=out.model or None, step=out.step or None,
                 busy_retries=out.retries or None, media_mb=out.media_mb,
                 ms=int((time.monotonic() - t0) * 1000), error=out.error or None)
             if out.recipe:
@@ -499,8 +502,10 @@ class Processor:
             if o.status == "ok":
                 self._apply_success(o)
 
+        g = self._gemini
         summary = {
-            "model": self._gemini.model if self._gemini else self.cfg["gemini"]["model"],
+            "model": g.model if g else self.cfg["gemini"]["model"],
+            "models_used": (g.run_used or None) if g else None,
             "processed": len(outcomes),
             "added": len(recipes),
             "updated": sum(1 for o in upd if o.status == "ok" and o.before != o.after),
@@ -536,6 +541,8 @@ class Processor:
             self._set(item, ["queued"])
         elif o.status == "busy":
             tries = f"tried {o.retries} more time{'s' if o.retries != 1 else ''}" if o.retries else "no time left to retry"
+            if self._gemini is not None and len(self._gemini.models) > 1:
+                tries += ", across all fallback models"
             self._set(item, ["queued"], comment=(
                 f"**Gemini was busy** while {step} ({tries}). Nothing is lost: {what} stays "
                 "queued and is tried again automatically with the next recipe you share, or in "
@@ -571,7 +578,8 @@ class Processor:
         assert r is not None
         lines = [
             f"### {r.name}",
-            f"{r.cuisine} \u00b7 {r.type} \u00b7 {r.time} \u00b7 source: {o.source}",
+            f"{r.cuisine} \u00b7 {r.type} \u00b7 {r.time} \u00b7 source: {o.source}"
+            + (f" \u00b7 model: {o.model}" if o.model else ""),
             "",
             f"Original: {r.url}",
         ]
@@ -598,7 +606,8 @@ class Processor:
             nb = (len(before.get("ingredients") or []), len(before.get("steps") or []))
             na = (len(r.get("ingredients") or []), len(r.get("steps") or []))
             lines.append(f"Ingredients and steps were read again from the {o.source} together with the "
-                         "caption. Name, cuisine, type, time and date were kept.")
+                         "caption" + (f" (model: {o.model})" if o.model else "") +
+                         ". Name, cuisine, type, time and date were kept.")
             if before == r:
                 lines += ["", "No changes: the re-read gave the same ingredients and steps."]
             else:

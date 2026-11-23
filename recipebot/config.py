@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULTS: dict = {
     "gemini": {
         "model": "gemini-3.8-flash",
-        "fallback_models": [],
+        "fallback_models": ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"],
         "temperature": 0.2,
         "inline_max_mb": 20,
         "file_poll_timeout_s": 300,

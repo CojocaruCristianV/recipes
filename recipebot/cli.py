@@ -63,10 +63,24 @@ def main(argv: list[str] | None = None) -> int:
         try:
             from .gemini import Gemini
 
-            current = cfg["gemini"]["model"]
-            for name in Gemini(cfg).list_models():
-                print(f"{name}{'   <- configured' if name == current else ''}")
+            g = Gemini(cfg)
+            current = g.models[0]
+            fallbacks = g.models[1:]
+            names = g.list_models()
+            for name in names:
+                tag = ""
+                if name == current:
+                    tag = "   <- configured"
+                elif name in fallbacks:
+                    tag = f"   <- fallback {fallbacks.index(name) + 1}"
+                print(f"{name}{tag}")
             print(f"\nConfigured model: {current}", file=sys.stderr)
+            if fallbacks:
+                print(f"Fallback models:  {', '.join(fallbacks)}", file=sys.stderr)
+            missing = [m for m in g.models if m not in names]
+            if missing:
+                print(f"Not available to this key (skipped at run time): {', '.join(missing)}",
+                      file=sys.stderr)
             return 0
         except Exception as e:  # noqa: BLE001
             log(status="error", error=sanitize(f"{type(e).__name__}: {e}"))

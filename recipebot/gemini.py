@@ -19,7 +19,7 @@ PROMPTS = Path(__file__).resolve().parent / "prompts"
 
 
 class QuotaExceeded(Exception):
-    """Gemini 429 / RESOURCE_EXHAUSTED: stop the run, keep items queued."""
+    """Gemini 429 / RESOURCE_EXHAUSTED on every configured model: stop the run, keep items queued."""
 
 
 class GeminiError(Exception):
@@ -31,7 +31,7 @@ class ModelUnavailable(GeminiError):
 
 
 class GeminiBusy(GeminiError):
-    """Gemini stayed overloaded / timed out through every retry."""
+    """Every usable model stayed overloaded / timed out through every retry."""
 
     def __init__(self, step: str, retries: int, detail: str):
         self.step = step
@@ -109,11 +109,23 @@ class Gemini:
         chain = [self.cfg["model"], *(self.cfg.get("fallback_models") or [])]
         self.models = list(dict.fromkeys(m.strip() for m in chain if m and m.strip()))
         self._active = 0  # index of the model that last worked (sticky for the run)
+        # Models taken out for the rest of the run: model -> "quota" | "gone".
+        self._dead: dict[str, str] = {}
         self.deadline = deadline  # time.monotonic() value; busy waits never run past it
         self._waits = [float(w) for w in (self.cfg.get("busy_waits_s") or [])]
         self._thinking = str(self.cfg.get("thinking_level") or "").strip().upper() or None
         self._light = bool(self.cfg.get("light_retry", True))
-        self.busy_retries = 0  # reset by the caller per item; for logs and comments
+        # Optional settings switched off per model after that model rejected them (HTTP 400).
+        self._no_thinking: set[str] = set()
+        self._no_light: set[str] = set()
+        self.busy_retries = 0  # reset per item (start_item); for logs and comments
+        self.used: list[str] = []  # models that answered for the current item
+        self.run_used: list[str] = []  # models that answered during the whole run
+
+    def start_item(self) -> None:
+        """Reset the per-item counters (busy retries, models used)."""
+        self.busy_retries = 0
+        self.used = []
 
     @property
     def model(self) -> str:
@@ -139,7 +151,7 @@ class Gemini:
             raise GeminiBusy(step, self.busy_retries, "no time left in this run")
         return left
 
-    def _config(self, light: bool = False, step: str = ""):
+    def _config(self, model: str, light: bool = False, step: str = ""):
         from google.genai import types
 
         kw: dict = dict(
@@ -152,9 +164,9 @@ class Gemini:
         if left is not None and (self._timeout_s <= 0 or left - 10 < self._timeout_s):
             # Never let one request run past the run deadline.
             kw["http_options"] = types.HttpOptions(timeout=int((left - 10) * 1000))
-        if self._thinking:
+        if self._thinking and model not in self._no_thinking:
             kw["thinking_config"] = types.ThinkingConfig(thinking_level=self._thinking)
-        if light and self._light:
+        if light and self._light and model not in self._no_light:
             kw["media_resolution"] = types.MediaResolution.MEDIA_RESOLUTION_LOW
         return types.GenerateContentConfig(**kw)
 
@@ -170,25 +182,60 @@ class Gemini:
         msg = getattr(err, "message", None) or str(err)
         return code == 404 or (code == 400 and bool(_MODEL_GONE_RE.search(msg)))
 
-    def _drop_unsupported(self, err: Exception, light: bool) -> bool:
-        """On a 400, switch off one optional setting and report True (call again).
+    def _drop_unsupported(self, err: Exception, model: str, light: bool) -> bool:
+        """On a 400, switch off one optional setting for this model and report True (call again).
 
         The exact wording of "setting not supported" errors is not documented, so any 400
         counts: first the thinking level goes, then low media resolution. Once both are off
         a 400 is a real error. This way an unsupported setting can never block extraction.
+        Settings are dropped per model, so an older fallback model does not switch them off
+        for the newer ones.
         """
         if getattr(err, "code", None) != 400:
             return False
         msg = (getattr(err, "message", None) or str(err))[:160]
-        if self._thinking:
-            _log(status="gemini-setting-dropped", setting="thinking_level", error=msg)
-            self._thinking = None
+        if self._thinking and model not in self._no_thinking:
+            _log(status="gemini-setting-dropped", setting="thinking_level", model=model, error=msg)
+            self._no_thinking.add(model)
             return True
-        if light and self._light:
-            _log(status="gemini-setting-dropped", setting="media_resolution", error=msg)
-            self._light = False
+        if light and self._light and model not in self._no_light:
+            _log(status="gemini-setting-dropped", setting="media_resolution", model=model, error=msg)
+            self._no_light.add(model)
             return True
         return False
+
+    # ------------------------------------------------------------------ fallback chain
+
+    def _usable(self) -> list[int]:
+        """Indexes of the models still in play this run, in the configured order."""
+        return [i for i, m in enumerate(self.models) if m not in self._dead]
+
+    def _retire(self, reason: str, err: Exception) -> None:
+        """Take the current model out for the rest of the run and move to the next usable one.
+
+        reason is "quota" (429, its quota is used up) or "gone" (not found / not supported).
+        Raises QuotaExceeded or ModelUnavailable when no model is left.
+        """
+        model = self.model
+        self._dead[model] = reason
+        left = self._usable()
+        if not left:
+            if "quota" in self._dead.values():
+                raise QuotaExceeded(
+                    f"Gemini quota used up on every model ({', '.join(self.models)}): {_short(err)}"
+                ) from None
+            raise ModelUnavailable(
+                f"Gemini model(s) unavailable: {', '.join(self.models)}. "
+                "Set the repo variable GEMINI_MODEL (see: python -m recipebot --list-models)"
+            ) from None
+        self._active = left[0]
+        _log(status="gemini-fallback", reason=reason, from_model=model, to_model=self.model,
+             error=_short(err))
+
+    def _note_used(self, model: str) -> None:
+        for lst in (self.used, self.run_used):
+            if model not in lst:
+                lst.append(model)
 
     def _pause(self, attempt: int, step: str, err: Exception) -> None:
         """Sleep before busy retry number attempt+1, or raise GeminiBusy when out of retries / time."""
@@ -204,38 +251,57 @@ class Gemini:
         self.busy_retries += 1
 
     def _call(self, contents: list, step: str, has_media: bool):
-        """generate_content with busy retries; moves down the fallback chain if a model is gone."""
+        """generate_content over the fallback chain.
+
+        - quota used up (429) or model gone: that model is out for the rest of the run,
+          the next one is tried at once.
+        - busy (503, 5xx, timeout): the next usable model that has not been busy since the
+          last wait is tried at once. Only when every usable model was busy does the call
+          wait (busy_waits_s) and start again from the best usable model.
+        The model that answers stays the active one for the following calls.
+        """
         from google.genai import errors
 
-        attempt = 0
+        attempt = 0  # busy waits done in this call
+        busy: set[str] = set()  # models that were busy since the last wait
         while True:
-            # Busy retries of media requests ask for low media resolution (far fewer tokens).
+            # After a busy wait, media requests ask for low media resolution (far fewer tokens).
             light = has_media and attempt > 0
+            model = self.model
             try:
-                return self.client.models.generate_content(
-                    model=self.model, contents=contents, config=self._config(light, step)
+                resp = self.client.models.generate_content(
+                    model=model, contents=contents, config=self._config(model, light, step)
                 )
+                self._note_used(model)
+                return resp
             except errors.APIError as e:
                 if self._is_quota(e):
-                    raise QuotaExceeded(f"Gemini quota ({self.model}): {getattr(e, 'code', '')} {getattr(e, 'status', '')}".strip()) from None
+                    self._retire("quota", e)
+                    continue
                 if self._is_model_gone(e):
-                    if self._active + 1 < len(self.models):
-                        self._active += 1
-                        continue
-                    raise ModelUnavailable(
-                        f"Gemini model(s) unavailable: {', '.join(self.models)}. "
-                        "Set the repo variable GEMINI_MODEL (see: python -m recipebot --list-models)"
-                    ) from None
-                if self._drop_unsupported(e, light):
+                    self._retire("gone", e)
+                    continue
+                if self._drop_unsupported(e, model, light):
                     continue
                 if not is_busy(e):
                     raise GeminiError(f"Gemini API {getattr(e, 'code', '')}: {(getattr(e, 'message', None) or str(e))[:160]}") from None
-                self._pause(attempt, step, e)
+                err: Exception = e
             except Exception as e:  # network errors and timeouts raised below the SDK
                 if not is_busy(e):
                     raise
-                self._pause(attempt, step, e)
+                err = e
+            busy.add(model)
+            nxt = next((i for i in self._usable() if self.models[i] not in busy), None)
+            if nxt is not None:
+                self._active = nxt
+                self.busy_retries += 1
+                _log(status="gemini-fallback", reason="busy", step=step, from_model=model,
+                     to_model=self.model, error=_short(err))
+                continue
+            self._pause(attempt, step, err)
             attempt += 1
+            busy.clear()
+            self._active = self._usable()[0]
 
     def _generate(self, contents: list, step: str, has_media: bool = False) -> Extraction:
         """Call the model; retry once on invalid output. Raises QuotaExceeded / ModelUnavailable / GeminiBusy."""

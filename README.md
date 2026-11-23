@@ -112,8 +112,13 @@ The default is `model` in `config.toml` (currently `gemini-3.8-flash`). Override
 | Repo → Settings → Secrets and variables → Actions → **Variables** → `GEMINI_MODEL` (or `GEMINI_MODEL=` in `.env` locally) | every run from now on | **no** |
 | `config.toml` → `[gemini] model` | the committed default | yes |
 
-- **To find valid IDs**, run `python -m recipebot --list-models`. It lists every model your key can call, and the configured one is marked.
-- **Backup models:** list them in `fallback_models = ["…"]` in `config.toml`. If a model returns "not found" or "not supported", the code moves to the next one. A quota error (429) does not switch models.
+- **To find valid IDs**, run `python -m recipebot --list-models`. It lists every model your key can call, marks the configured one and the fallbacks, and names any configured ID your key can't use (those are simply skipped).
+- **Backup models:** `fallback_models` in `config.toml` lists them, tried in order after the main model. Default: `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`. The bot moves to the next model when the current one:
+  - **runs out of quota (429):** that model is skipped for the rest of the run,
+  - **is not found / not supported:** that model is skipped for the rest of the run,
+  - **is busy (503, 5xx, timeout):** the next model is tried right away. The 30 s / 60 s / 120 s waits only start once every model in the list was busy; after each wait the bot starts again from the top.
+
+  The model that answers stays in use for the rest of the run. Each switch is logged as `gemini-fallback`, and the issue comment says which model read the recipe (`model: ...`).
 - **If no model in the list is available:**
   - the run stops,
   - the issues stay `queued`,
@@ -275,8 +280,8 @@ To move from Safari to the Home Screen app, or to a new phone: Export on the old
 | **Apify actor failing / out of credit** | Comment shows `Apify: ...` and then yt-dlp runs. Check Apify Console → Billing/Usage (free $5 resets monthly). If the actor was renamed or broke, change `apify_actor` in `config.toml`. Errors about credit or token count as "unavailable", not "blocked". |
 | **IG blocking yt-dlp** | yt-dlp is upgraded on every run. If it's still blocked: set `IG_COOKIES_B64` (Netscape cookies.txt from a **throwaway** IG account, `certutil -encode` then strip the header and footer lines, or `[Convert]::ToBase64String(...)`), or enable the self-hosted runner. |
 | **Private / login-required post** | Every fetcher reports a block, so the issue gets `needs-local`. Private posts can't be scraped without cookies. Close the issue or use cookies. |
-| **Gemini busy (503 "high demand", 5xx, timeout)** | The bot waits 30 s, 60 s, then 120 s and tries again, all in the same run, reusing the downloaded video. Retries send the video at low resolution (about 4x fewer tokens). If the caption already had part of the recipe, that part is published with the rest marked `TBD` and the `needs-review` label. Otherwise the issue goes back to `queued` with a comment, the run stops, and the next share or the daily run tries again; add `retry` to try sooner. Waits and settings are under `[gemini]` in `config.toml` (`busy_waits_s`, `light_retry`, `thinking_level`). |
-| **Gemini 429 / quota** | The item stays `queued` and the run stops. It's processed automatically by the next share, the daily cron, or Run workflow. If it keeps happening, set `GEMINI_MODEL` to a lighter model; `--list-models` shows the options. |
+| **Gemini busy (503 "high demand", 5xx, timeout)** | The bot first tries the next model in `fallback_models` right away. Only when every model was busy does it wait 30 s, 60 s, then 120 s and try again from the top, all in the same run, reusing the downloaded video. Retries after a wait send the video at low resolution (about 4x fewer tokens). If the caption already had part of the recipe, that part is published with the rest marked `TBD` and the `needs-review` label. Otherwise the issue goes back to `queued` with a comment, the run stops, and the next share or the daily run tries again; add `retry` to try sooner. Waits and settings are under `[gemini]` in `config.toml` (`busy_waits_s`, `light_retry`, `thinking_level`). |
+| **Gemini 429 / quota** | The bot switches to the next model in `fallback_models` (on the free tier each model has its own quota) and skips the used-up one for the rest of the run. Only when every model is out of quota does the item stay `queued` and the run stop. It's then processed automatically by the next share, the daily cron, or Run workflow. |
 | **Gemini model not found / retired** | The job fails with "Gemini model unavailable" and the issues stay `queued`. Run `python -m recipebot --list-models`, set the repo variable `GEMINI_MODEL` to a listed ID (no commit needed), then Run workflow. You can also add a backup to `fallback_models`. |
 | **Shortcut 401** | The PAT has expired, was revoked, or was pasted wrong. Header must be exactly `Bearer github_pat_…`. |
 | **Shortcut 403 / 404** | The PAT isn't scoped to `recipes`, or Issues isn't set to Read and write. Check the repo name in the URL. A 404 also happens if Issues is disabled in repo Settings. |
