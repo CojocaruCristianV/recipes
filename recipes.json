@@ -1,5 +1,44 @@
 [
   {
+    "name": "Roasted Carrot and Chickpea Farro Salad",
+    "cuisine": "Various",
+    "type": "Salad",
+    "time": "45 min",
+    "ingredients": [
+      "~4 medium carrots, sliced diagonally",
+      "~1 can (15 oz) chickpeas, drained and rinsed",
+      "~3 tbsp olive oil",
+      "~1/2 tsp salt",
+      "~1 cup farro",
+      "~1 large shallot, finely diced",
+      "~2 tbsp lemon juice",
+      "~1 tbsp honey",
+      "~1/2 tsp salt",
+      "~1/2 cup hazelnuts, chopped",
+      "~3 cloves garlic, minced",
+      "~3 tbsp olive oil",
+      "~1 tsp fennel seeds",
+      "~1 tsp dried oregano",
+      "~1-2 tbsp Calabrian chili paste",
+      "~1/4 cup fresh parsley, chopped"
+    ],
+    "steps": [
+      "Preheat oven to 400°F (200°C).",
+      "On a parchment-lined baking sheet, combine sliced carrots and chickpeas.",
+      "Drizzle with olive oil, season with salt, toss to coat, and roast until tender and crispy.",
+      "Cook farro in boiling water like pasta until tender, then drain excess water.",
+      "In a small bowl, combine diced shallots, lemon juice, honey, and salt; set aside to macerate and pickle.",
+      "In a small pan, toast chopped hazelnuts and garlic in olive oil over medium heat.",
+      "Stir in fennel seeds and dried oregano near the end of toasting.",
+      "Remove from heat and stir in Calabrian chili paste.",
+      "In a large bowl, mix together the macerated shallots, cooked farro, roasted carrots and chickpeas, chopped fresh parsley, and warm hazelnut chili dressing.",
+      "Toss well to combine and serve warm or at room temperature."
+    ],
+    "url": "https://www.instagram.com/p/Df0efXrPkxm/",
+    "needs_review": false,
+    "added": "2026-11-23"
+  },
+  {
     "name": "Science Based Fudgy Crackle Top Brownies",
     "cuisine": "Various",
     "type": "Dessert",
