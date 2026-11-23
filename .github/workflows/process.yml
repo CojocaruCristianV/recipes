@@ -100,6 +100,10 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
 
+      # A syntax error in index.html blanks the whole site, so never publish one.
+      - name: Check site files
+        run: node scripts/check-site.mjs index.html recipes.json
+
       - name: Build site artifact
         run: |
           mkdir -p _site

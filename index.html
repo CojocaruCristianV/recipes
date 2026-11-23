@@ -1351,7 +1351,7 @@
       "</section>";
   }
 
-  function filterSheetFoot() =
+  function filterSheetFoot() {
     const n = pool().length;
     return '<button class="btn ghost" type="button" data-act="fClear"' + (activeFilters().length ? "" : " disabled") + ">Clear all</button>" +
       '<button class="btn" type="button" data-act="closeSheet">' + (n ? "Show " + plural(n, "recipe") : "No matches") + "</button>";

@@ -1,0 +1,30 @@
+name: check
+
+# Early warning: fails on the push itself when index.html has a syntax error or
+# recipes.json is not valid. The deploy jobs run the same check before publishing.
+
+on:
+  push:
+    paths:
+      - index.html
+      - recipes.json
+      - scripts/check-site.mjs
+      - .github/workflows/check.yml
+  pull_request:
+    paths:
+      - index.html
+      - recipes.json
+      - scripts/check-site.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check site files
+        run: node scripts/check-site.mjs index.html recipes.json
