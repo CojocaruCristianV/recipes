@@ -1,5 +1,34 @@
 [
   {
+    "name": "Garlic Butter Noodles",
+    "cuisine": "Fusion",
+    "type": "Main",
+    "time": "15 min",
+    "ingredients": [
+      "2 tbsp butter",
+      "20 cloves garlic, diced",
+      "pasta water",
+      "2 tbsp soy sauce",
+      "1 tbsp oyster sauce",
+      "green onions, generous amount",
+      "noodles",
+      "1 cup Parmesan, grated",
+      "Salt, to taste",
+      "Pepper, to taste"
+    ],
+    "steps": [
+      "To a pan add 2 tablespoons of butter and 20 diced cloves of garlic, and sauté for two minutes",
+      "then add in some pasta water, 2 tablespoon tablespoons of soy sauce, and one spoon of oyster sauce, with a generous amount of green onions.",
+      "after sautéing for about two more minutes, add in your noodles and a full cup of grated Parmesan.",
+      "add salt and pepper to taste and enjoy!"
+    ],
+    "url": "https://www.instagram.com/p/DfCj4zuogbp/",
+    "author": "feeedmi",
+    "source": "",
+    "needs_review": false,
+    "added": "2026-11-24"
+  },
+  {
     "name": "Creamy Tuscan Pasta",
     "cuisine": "Italian",
     "type": "Main",
