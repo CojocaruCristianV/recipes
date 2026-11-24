@@ -32,9 +32,10 @@ SOURCE RULES
 - Ignore sponsor text, calls to action ("save this", "follow for more", "link in bio"),
   giveaways and hashtags.
 
-caption_has_ingredients = true only if the caption text itself lists the ingredients
-(a full list, not just a mention of the dish). caption_has_steps = true only if the caption
-text itself describes the method. Judge this from the caption alone, never from media.
+caption_has_ingredients = true only if the caption text itself (or the creator's own comments
+given with it) lists the ingredients (a full list, not just a mention of the dish).
+caption_has_steps = true only if that text describes the method. Judge this from the text
+alone, never from media.
 
 REVIEW FLAG
 - needs_review = true ONLY when the recipe is not usable as is: a key ingredient cannot be
@@ -44,4 +45,6 @@ REVIEW FLAG
 - Estimated amounts ("~") are expected and never count as a reason for review.
 - If needs_review is false, review_reason must be "".
 
-If is_recipe is false, return empty strings and empty lists for the recipe fields.
+If is_recipe is false, return empty lists for ingredients and steps, but still fill name with
+the dish the post is about when there is one (e.g. "recipe is on my website" posts): it is used
+to find the recipe elsewhere.

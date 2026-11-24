@@ -4,6 +4,8 @@
   python -m recipebot --issue N [--dry-run]       (a shared link, a website edit or a re-read)
   python -m recipebot --all-queued [--dry-run] [--local]
   python -m recipebot --list-models
+  python -m recipebot --probe <link>                (debug: raw Apify output to .probe/)
+  python -m recipebot --backfill-authors [--dry-run]
 """
 from __future__ import annotations
 
@@ -38,6 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
                      help="Process all open owner issues labelled queued/retry (or needs-local with --local)")
     src.add_argument("--list-models", action="store_true",
                      help="Print the Gemini model IDs available to GEMINI_API_KEY and exit")
+    src.add_argument("--probe", metavar="URL",
+                     help="Debug: save the raw Apify output (post, comments, creator profile) to .probe/")
+    src.add_argument("--backfill-authors", action="store_true",
+                     help="Fill in the Instagram username of recipes saved without one (one Apify run), "
+                          "then commit and push; with --dry-run only print what would change")
     p.add_argument("--dry-run", action="store_true", help="Print JSON; no commit, no issue changes")
     p.add_argument("--local", action="store_true", help="Self-hosted mode: needs-local issues, local fetcher order")
     p.add_argument("--force", action="store_true", help="Reprocess even if the URL is already in recipes.json")
@@ -58,6 +65,24 @@ def main(argv: list[str] | None = None) -> int:
             sys.stderr.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError):
             pass
+
+    if args.probe:
+        from .probe import probe
+
+        try:
+            return probe(args.probe, cfg)
+        except Exception as e:  # noqa: BLE001
+            log(status="error", error=sanitize(f"{type(e).__name__}: {e}"))
+            return 1
+
+    if args.backfill_authors:
+        from .backfill import backfill_authors
+
+        try:
+            return backfill_authors(cfg, dry_run=args.dry_run)
+        except Exception as e:  # noqa: BLE001
+            log(status="error", error=sanitize(f"{type(e).__name__}: {e}"))
+            return 1
 
     if args.list_models:
         try:

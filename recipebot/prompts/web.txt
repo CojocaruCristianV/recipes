@@ -1,0 +1,28 @@
+Extract the recipe from this web page. It was found through the Instagram post below (a link
+in its caption, in the creator's comments or in the creator's bio), so it should be the
+creator's own write-up of the same dish.
+
+Existing cuisine values (reuse one if it fits): $existing_cuisines
+Existing type values (reuse one if it fits): $existing_types
+
+- Ingredients and steps come from the page and stay as written: only split them into list
+  items and strip emojis, bullets, numbering and hashtags. Translate faithfully if not English.
+  Do not add, merge, reorder or "improve" anything, and do not use "~" for amounts the page gives.
+- Ignore everything that is not the recipe: the story before it, ads, shop links, nutrition
+  tables, ratings, reader comments, other recipes listed on the page.
+- If the page has several sub-recipes (e.g. a dressing and a salad), keep them all, in order.
+- If the page does not contain the recipe for the dish of this post (another dish, a teaser,
+  a paywall, a sign-up form), set is_recipe = false.
+- Use the caption only to recognise the dish and for name, cuisine, type and time.
+- Set caption_has_ingredients and caption_has_steps to true when the page has them.
+
+PAGE: $url
+TITLE: $title
+<<<
+$page
+>>>
+
+INSTAGRAM CAPTION (context only):
+<<<
+$caption
+>>>

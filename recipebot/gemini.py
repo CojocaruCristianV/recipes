@@ -61,6 +61,11 @@ def _fmt_values(values: list[str]) -> str:
     return ", ".join(values) if values else "(none yet)"
 
 
+def _fmt_comments(comments: list[str] | None) -> str:
+    items = [c.strip() for c in (comments or []) if c and c.strip()]
+    return "\n---\n".join(items)[:4000] if items else "(none)"
+
+
 def media_kind(media: list[MediaFile]) -> str:
     return "video" if any(m.mime.startswith("video/") for m in media) else "images"
 
@@ -82,6 +87,27 @@ def is_busy(err: Exception) -> bool:
         return code in _BUSY_CODES or status in _BUSY_STATUS or bool(_BUSY_RE.search(msg))
     names = [c.__name__ for c in type(err).__mro__]
     return any(key in name for name in names for key in _NET_NAMES)
+
+
+def quota_scope(err: Exception) -> tuple[str, float | None]:
+    """("day" | "minute" | "unknown", retry delay in seconds) for a 429 error.
+
+    The error details name the quota that ran out (e.g. "...PerDay..." or "...PerMinute...")
+    and usually carry a RetryInfo delay. A per-minute limit clears within a minute, so only
+    a per-day limit means the model is used up for the rest of the run.
+    """
+    details = getattr(err, "details", None)
+    try:
+        text = json.dumps(details, default=str) if details else str(err)
+    except (TypeError, ValueError):
+        text = str(err)
+    m = re.search(r'retryDelay"?\s*:\s*"?(\d+(?:\.\d+)?)s', text)
+    delay = float(m.group(1)) if m else None
+    if re.search(r"PerDay|per day|daily", text, re.I):
+        return "day", delay
+    if re.search(r"PerMinute|per minute", text, re.I):
+        return "minute", delay
+    return "unknown", delay
 
 
 def _short(err: Exception) -> str:
@@ -115,6 +141,10 @@ class Gemini:
         self._waits = [float(w) for w in (self.cfg.get("busy_waits_s") or [])]
         self._thinking = str(self.cfg.get("thinking_level") or "").strip().upper() or None
         self._light = bool(self.cfg.get("light_retry", True))
+        # Free-tier pacing: minimum gap between requests, and waits for per-minute 429s.
+        self._min_interval = float(self.cfg.get("min_interval_s") or 0)
+        self._rpm_waits = [float(w) for w in (self.cfg.get("rpm_waits_s") or [])]
+        self._last_call = 0.0
         # Optional settings switched off per model after that model rejected them (HTTP 400).
         self._no_thinking: set[str] = set()
         self._no_light: set[str] = set()
@@ -232,6 +262,31 @@ class Gemini:
         _log(status="gemini-fallback", reason=reason, from_model=model, to_model=self.model,
              error=_short(err))
 
+    def _pace(self) -> None:
+        """Keep at least min_interval_s between two requests (free-tier requests per minute)."""
+        gap = self._last_call + self._min_interval - time.monotonic()
+        if gap > 0:
+            time.sleep(gap)
+        self._last_call = time.monotonic()
+
+    def _rate_wait(self, err: Exception, tries: int, step: str) -> bool:
+        """For a per-minute 429: wait and report True (call the same model again).
+
+        Returns False for a daily quota (or once the per-minute waits are used up), so the
+        caller takes the model out. Raises GeminiBusy when the run has no time left to wait,
+        which keeps the item queued without wrongly retiring the model.
+        """
+        scope, delay = quota_scope(err)
+        if scope == "day" or tries >= len(self._rpm_waits):
+            return False
+        wait = max(self._rpm_waits[tries], min(delay or 0.0, 90.0)) + random.uniform(0, 3)
+        if self.deadline is not None and time.monotonic() + wait + _MIN_CALL_S > self.deadline:
+            raise GeminiBusy(step, self.busy_retries, f"rate limited ({_short(err)}), no time left in this run")
+        _log(status="gemini-rate-limit", step=step, model=self.model, scope=scope, wait_s=int(wait),
+             retry=tries + 1, of=len(self._rpm_waits))
+        time.sleep(wait)
+        return True
+
     def _note_used(self, model: str) -> None:
         for lst in (self.used, self.run_used):
             if model not in lst:
@@ -263,20 +318,25 @@ class Gemini:
         from google.genai import errors
 
         attempt = 0  # busy waits done in this call
+        rate_tries = 0  # per-minute 429 waits done for the current model
         busy: set[str] = set()  # models that were busy since the last wait
         while True:
             # After a busy wait, media requests ask for low media resolution (far fewer tokens).
             light = has_media and attempt > 0
             model = self.model
             try:
-                resp = self.client.models.generate_content(
-                    model=model, contents=contents, config=self._config(model, light, step)
-                )
+                config = self._config(model, light, step)
+                self._pace()
+                resp = self.client.models.generate_content(model=model, contents=contents, config=config)
                 self._note_used(model)
                 return resp
             except errors.APIError as e:
                 if self._is_quota(e):
+                    if self._rate_wait(e, rate_tries, step):
+                        rate_tries += 1
+                        continue
                     self._retire("quota", e)
+                    rate_tries = 0
                     continue
                 if self._is_model_gone(e):
                     self._retire("gone", e)
@@ -319,13 +379,28 @@ class Gemini:
 
     # ------------------------------------------------------------------ public
 
-    def from_caption(self, caption: str, cuisines: list[str], types_: list[str]) -> Extraction:
+    def from_caption(self, caption: str, cuisines: list[str], types_: list[str],
+                     comments: list[str] | None = None) -> Extraction:
         text = Template(_prompt("caption.txt")).safe_substitute(
-            caption=caption.strip(),
+            caption=caption.strip() or "(no caption)",
+            comments=_fmt_comments(comments),
             existing_cuisines=_fmt_values(cuisines),
             existing_types=_fmt_values(types_),
         )
         return self._generate([text], "caption")
+
+    def from_web(self, page_text: str, title: str, url: str, caption: str,
+                 cuisines: list[str], types_: list[str]) -> Extraction:
+        """Read the recipe from the text of the creator's web page (text only, no media)."""
+        text = Template(_prompt("web.txt")).safe_substitute(
+            page=page_text.strip(),
+            title=title.strip() or "(no title)",
+            url=url,
+            caption=(caption or "").strip()[:1500] or "(no caption)",
+            existing_cuisines=_fmt_values(cuisines),
+            existing_types=_fmt_values(types_),
+        )
+        return self._generate([text], "web")
 
     def from_media(
         self,
@@ -334,10 +409,12 @@ class Gemini:
         missing: list[str],
         cuisines: list[str],
         types_: list[str],
+        comments: list[str] | None = None,
     ) -> Extraction:
         kind = media_kind(media)
         text = Template(_prompt("media.txt")).safe_substitute(
             caption=(caption or "").strip() or "(no caption)",
+            comments=_fmt_comments(comments),
             media_kind=kind,
             missing=" and ".join(missing) or "nothing",
             existing_cuisines=_fmt_values(cuisines),

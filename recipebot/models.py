@@ -5,8 +5,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Field order here is the key order written to recipes.json.
 RECIPE_FIELDS = (
-    "name", "cuisine", "type", "time", "ingredients", "steps", "url", "needs_review", "added",
+    "name", "cuisine", "type", "time", "ingredients", "steps", "url", "author", "source",
+    "needs_review", "added",
 )
+# Fields added after the first version: records without them get these defaults on load.
+FIELD_DEFAULTS = {"author": "", "source": ""}
 
 
 class Extraction(BaseModel):
@@ -37,6 +40,10 @@ class Recipe(BaseModel):
     ingredients: list[str] = Field(min_length=1)
     steps: list[str] = Field(min_length=1)
     url: str = Field(pattern=r"^https://www\.instagram\.com/p/[A-Za-z0-9_-]{5,}/$")
+    # Instagram username of the creator, without "@". Empty when unknown.
+    author: str = Field(default="", pattern=r"^([A-Za-z0-9._]{1,30})?$")
+    # Web page the recipe was taken from (creator's site, blog). Empty when it came from Instagram.
+    source: str = Field(default="", max_length=500, pattern=r"^(https?://\S+)?$")
     needs_review: bool
     added: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
 

@@ -11,6 +11,23 @@ iOS Share Sheet -> GitHub Issue (queue) -> Actions: Apify / yt-dlp -> Gemini
 Edits and "Re-read from video" on the site use the same queue: the site opens an `edit` or
 `reread` issue, and the bot updates the recipe in place.
 
+## Where a recipe comes from
+
+The bot tries these sources in order and stops at the first one that gives a complete recipe:
+
+1. **Caption and the creator's own comments.** Many creators put the recipe in a comment ("recipe in the comments"). The post's first comments come with the post for free. When the caption points to the comments, one more Apify run reads up to 50 of them. Only comments written by the post's owner are used.
+2. **The creator's website.** Links are tried in this order:
+   - links in the caption or the creator's comments;
+   - the link(s) in the creator's **Instagram bio**, including link pages such as Linktree or Beacons;
+   - the creator's own site. That site is searched for the dish through the WordPress search API, then its sitemap.
+
+   A page counts only when its name matches the dish. Pages with schema.org recipe data are read directly, with no Gemini call. Other pages are read by Gemini, quoting the page text.
+3. **The video or images**, read by Gemini. Amounts that are only seen or heard are marked `~`.
+
+**Paid content is never used.** Paywalled articles, members-only posts and recipes sold as products (ebooks, Shopify/Gumroad/Patreon/Substack paywalls) are detected and skipped. The bot then falls back to the next source.
+
+Each recipe stores the **creator** (`author`, the Instagram username) and, when it came from a web page, that page (`source`). The site shows them under the title as *by @username* and *Recipe from site.com*.
+
 ## Folder structure
 
 ```
@@ -20,15 +37,18 @@ recipebot/                      Python package (python -m recipebot)
   cli.py        CLI: --url, --issue (also edit / re-read issues), --all-queued, --dry-run, --local, --force
   processor.py  per-item flow (new recipe, edit, re-read), retries, issue outcomes, publishing
   edits.py      website edits: request parsing, conflict check, validation, change summary
-  fetchers.py   Apify -> yt-dlp chain, block detection
+  fetchers.py   Apify -> yt-dlp chain, block detection, creator comments, bio links, Apify usage
+  web.py        creator website lookup: safe fetching, Apify web fallback, recipe JSON-LD, paywall check
+  probe.py      --probe: saves raw Apify output to .probe/ for debugging
+  backfill.py   --backfill-authors: fills in the creator of older recipes
   gemini.py     google-genai calls, JSON schema, inline vs File API, 429 handling
   models.py     pydantic: model output + strict recipes.json record
   clean.py      emoji/bullet/hashtag/numbering cleanup, cuisine/type normalization
   store.py      merge, in-place updates, atomic write, git commit/push with conflict retry
   urls.py       URL extraction + canonicalization (/reel/, /reels/, /p/ -> /p/<code>/)
   gh.py         GitHub REST helpers
-  prompts/      system.txt, caption.txt, media.txt, reread.txt  (edit freely; $vars are substituted)
-config.toml     model, fetcher order, Apify actor, limits
+  prompts/      system.txt, caption.txt, media.txt, web.txt, reread.txt  (edit freely; $vars are substituted)
+config.toml     model, fetcher order, Apify actors, web lookup, limits
 index.html      the website (static, no dependencies)
 recipes.json    the data (starts as [])
 scripts/create-labels.ps1
@@ -49,7 +69,9 @@ scripts/create-labels.ps1
    - Actions permissions: **Allow actions created by GitHub** only. All actions used are `actions/*`.
 4. **Labels.** Run `gh auth login`, then `.\scripts\create-labels.ps1`. If you set this up before editing existed, run it again: it adds the `edit` and `reread` labels. It is safe to re-run, since existing labels are only updated, never deleted.
 5. **Gemini key.** Go to https://aistudio.google.com/apikey → Create API key. The free tier is enough. Confirm the model ID with `python -m recipebot --list-models` (see "Changing the Gemini model" below).
-6. **Apify.** Sign up at https://apify.com. Then Console → Settings → API & Integrations → copy the **Personal API token**. The free $5/month of credit covers a few hundred posts. The actor `apify/instagram-scraper` needs no setup.
+6. **Apify.** Sign up at https://apify.com. Then go to Console → Settings → API & Integrations and copy the **Personal API token**.
+   - **Cost:** an Instagram run costs about $0.003, so the free $5/month covers roughly 1,500 runs. A recipe takes 1 run if the caption has it, and up to 3 if the bot also reads more comments and the creator's bio. A website fetch through `apify/cheerio-scraper` is about $0.001. Every run summary logs the month's usage (`apify_usd`).
+   - **Actors:** `apify/instagram-scraper` needs no setup. `apify/cheerio-scraper` is only used when a website blocks plain requests. The first time it runs, the Apify Console may ask you to approve the actor's permissions: open the run in Console and approve them once.
 7. **Secrets.** Repo → Settings → Secrets and variables → Actions → New repository secret:
    - `GEMINI_API_KEY`
    - `APIFY_TOKEN`
@@ -114,7 +136,9 @@ The default is `model` in `config.toml` (currently `gemini-3.8-flash`). Override
 
 - **To find valid IDs**, run `python -m recipebot --list-models`. It lists every model your key can call, marks the configured one and the fallbacks, and names any configured ID your key can't use (those are simply skipped).
 - **Backup models:** `fallback_models` in `config.toml` lists them, tried in order after the main model. Default: `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`. The bot moves to the next model when the current one:
-  - **runs out of quota (429):** that model is skipped for the rest of the run,
+  - **runs out of quota (429):** the bot reads which limit was hit.
+    - **Per-minute limit:** the bot waits (`rpm_waits_s`, default 20 s then 40 s) and tries the same model again. Requests are also spaced at least `min_interval_s` apart (default 4.5 s), so this is rare.
+    - **Daily limit:** that model is skipped for the rest of the run. When every model's daily quota is used up, the issue gets a comment saying so and stays `queued`.
   - **is not found / not supported:** that model is skipped for the rest of the run,
   - **is busy (503, 5xx, timeout):** the next model is tried right away. The 30 s / 60 s / 120 s waits only start once every model in the list was busy; after each wait the bot starts again from the top.
 
@@ -141,6 +165,8 @@ python -m recipebot --all-queued --dry-run
 - Without `--dry-run`, the issue commands use `gh auth token`.
 - `--force` reprocesses a URL that's already in `recipes.json`.
 - Every item writes one JSON log line to stderr: issue, url, status, source, fetcher, ms, error.
+- `python -m recipebot --probe "<link>"` saves the raw Apify output to `.probe/`: the post, its comments and the creator's profile. It is ignored by git, so you can delete it at any time. Use it to see what Apify returns when a recipe was not found.
+- `python -m recipebot --backfill-authors --dry-run` shows the creator it would fill in for each recipe that has none (one Apify run for all of them). Without `--dry-run` it commits and pushes `recipes.json`, like a normal run.
 
 ## End-to-end test
 
@@ -175,7 +201,7 @@ On a phone the tabs sit at the bottom; on a wide screen they move to a bar at th
 
 ### Search, filters and sort
 
-- **Search** looks at the name, cuisine, type and ingredients. Accents are ignored (`creme` finds *Crème Brûlée*), and every word you type must match. Matches are highlighted, and if a word only matched an ingredient, that ingredient is shown under the card.
+- **Search** looks at the name, cuisine, type, ingredients and the creator's username. Accents are ignored (`creme` finds *Crème Brûlée*), and every word you type must match. Matches are highlighted, and if a word only matched an ingredient, that ingredient is shown under the card.
 - **Ingredients only** searches the ingredients alone, and every word must appear in an ingredient. `garlic lemon` finds recipes that use both.
 - **Filters** (the sliders button) open a sheet with cuisine, type, *Saved only*, and *Show recipes that need review*. The number on each chip is how many recipes you would get. Active filters appear as pills under the search bar; tap a pill to remove it.
 - **Sort**: Newest, Oldest, A-Z, Fewest ingredients.
@@ -184,6 +210,7 @@ On a phone the tabs sit at the bottom; on a wide screen they move to a bar at th
 ### Recipe page
 
 - Covers are coloured by **cuisine** (Italian red, French indigo, Greek blue, Mexican green, Indian saffron...) with a cuisine icon. A cuisine without its own colour gets a fixed colour worked out from its name, plus the recipe type's icon.
+- Under the title: *by @creator* (opens their Instagram profile) and, when the recipe was taken from a website, *Recipe from site.com* (opens that page).
 - The facts row shows the estimated time (`~1 h 15 min`), number of ingredients and number of steps. Times come from captions or are guessed from the video, so they are shown with `~`.
 - On a phone, Ingredients and Steps are two tabs; on a wide screen they sit side by side.
 - Tap an ingredient to tick it; **Untick all** clears the ticks. Tap a step to highlight where you are. Ticks are kept until you clear them, even after closing the app.
@@ -300,3 +327,26 @@ To move from Safari to the Home Screen app, or to a new phone: Export on the old
 | **"Nothing to re-read"** | The post has no video or images (or they couldn't be found), so there was nothing to add. The recipe is unchanged; use Edit instead. |
 | **Re-read stays `queued`** | Gemini was busy or out of quota. It runs with the next share or the daily run; add `retry` to try sooner. |
 | **Edit sent, but the note doesn't go away** | Open the issue (the link in the note) to see what happened. The note stops waiting after 30 minutes. |
+| **`apify-format-warning` in the log** | The Instagram actor's output is missing fields the bot expects (for example `ownerUsername` or `latestComments`). The actor probably changed. Run `--probe` on the link to see the raw output, then adjust `fetchers.py` or switch `apify_actor`. |
+| **Recipe is on the creator's site, but the bot didn't find it** | The log shows `web` steps. Common causes: the page is paid or members-only (skipped on purpose), the site is a shop or a link page with no recipe, or its title doesn't match the dish. Use **Edit**, or raise `max_fetches` / lower `min_name_score` under `[web]`. To turn the lookup off, set `enabled = false`. |
+| **"Daily free quota is used up"** | Every Gemini model hit its daily free limit. Issues stay `queued` and run on the next share or the daily cron once the quota resets. |
+| **Website lookup is slow or uses Apify credit** | Limits are under `[web]` in `config.toml`: `max_seconds`, `max_fetches`, `max_bio_links` and `max_apify_runs`. Set `apify_fallback = false` to never use Apify for websites, or `follow_bio_links = false` to skip the bio. |
+
+## Future ideas
+
+### Optimized cooking timeline
+
+Plan the cooking as a schedule rather than a plain step list: which steps can run at the same time, and when to start each one so everything is ready together. Design notes:
+
+- **Data:** an optional `plan` per recipe, with one entry per step:
+  - `active_min` (hands-on time) and `passive_min` (oven, resting, marinating);
+  - `after`: the steps it depends on;
+  - `uses`: the equipment it needs (oven, burner);
+  - `est`: true when the times are guesses.
+- **Extraction:** a separate text-only Gemini call on the finished ingredients and steps. It is cheap and needs no video. Its output is validated: no cycles, every `after` points to a real step, times are within limits.
+- **Scheduling** runs on the site, not in the model: a deterministic critical-path scheduler in JavaScript. Defaults are 1 cook, 1 oven and 4 burners. Passive steps don't occupy the cook.
+- **UI:** a **Timeline** tab next to Ingredients and Steps, with a Gantt-style chart and a "Cook now" mode that counts down to the next step.
+
+### More sources
+
+TikTok and YouTube Shorts links, using the same pipeline with other fetchers.

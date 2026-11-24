@@ -11,18 +11,33 @@ Error classes:
 from __future__ import annotations
 
 import base64
+import json
 import mimetypes
 import os
 import re
+import sys
 import tempfile
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlparse
 
 import requests
 
 from .urls import UA
+
+# Instagram usernames: letters, digits, "." and "_", at most 30 characters.
+USERNAME_RE = re.compile(r"^[A-Za-z0-9._]{1,30}$")
+# Media is only downloaded from Instagram's own CDN hosts.
+_CDN_HOSTS = ("cdninstagram.com", "fbcdn.net")
+# Fields of the Apify post item this code relies on. A missing one means the actor's
+# output changed; that is logged so it does not silently degrade results.
+_EXPECTED_POST_FIELDS = ("caption", "type", "ownerUsername", "displayUrl", "latestComments")
+
+
+def _log(**fields) -> None:
+    print(json.dumps(fields, ensure_ascii=False), file=sys.stderr, flush=True)
 
 
 class FetchError(Exception):
@@ -71,6 +86,26 @@ class Post:
     video_urls: list[str] = field(default_factory=list)
     image_urls: list[str] = field(default_factory=list)
     _downloader: Callable[[Path], list[MediaFile]] | None = field(default=None, repr=False)
+    author: str = ""  # Instagram username, "" if unknown
+    author_name: str = ""  # display name, "" if unknown
+    # Comments written by the creator on this post (top-level and replies), newest first.
+    creator_comments: list[str] = field(default_factory=list)
+    # Loads more comments (a separate Apify run); only used when the caption points to them.
+    _more_comments: Callable[[], list[str]] | None = field(default=None, repr=False)
+
+    def more_comments(self) -> list[str]:
+        """The creator's comments from a deeper comments fetch ([] if not available)."""
+        if self._more_comments is None:
+            return []
+        try:
+            extra = self._more_comments()
+        except Exception as e:  # noqa: BLE001 - comments are a bonus, never fatal
+            _log(status="comments-error", url=self.url, error=str(e)[:160])
+            extra = []
+        self._more_comments = None
+        new = [c for c in extra if c not in self.creator_comments]
+        self.creator_comments += new
+        return new
 
     @property
     def has_media(self) -> bool:
@@ -94,14 +129,25 @@ def _guess_mime(path: Path, header: str | None, default: str) -> str:
     return guess or default
 
 
+def _is_cdn(url: str) -> bool:
+    p = urlparse(url)
+    host = (p.hostname or "").lower()
+    return p.scheme == "https" and any(host == h or host.endswith("." + h) for h in _CDN_HOSTS)
+
+
 def download_cdn(urls: list[str], dest: Path, default_mime: str, max_mb: int) -> list[MediaFile]:
     out: list[MediaFile] = []
     limit = max_mb * 1024 * 1024
     for i, url in enumerate(urls):
+        if not _is_cdn(url):
+            raise FetchError(f"Media URL is not on Instagram's CDN: {urlparse(url).hostname}")
         ext = ".mp4" if default_mime.startswith("video/") else ".jpg"
         path = dest / f"media_{i}{ext}"
         try:
-            with requests.get(url, headers={"User-Agent": UA}, stream=True, timeout=60) as r:
+            with requests.get(url, headers={"User-Agent": UA}, stream=True, timeout=60,
+                              allow_redirects=False) as r:
+                if r.status_code in (301, 302, 303, 307, 308):
+                    raise FetchError("Media download was redirected away from the CDN")
                 if r.status_code in (401, 403, 429):
                     raise Blocked(f"CDN returned {r.status_code}")
                 r.raise_for_status()
@@ -121,7 +167,8 @@ def download_cdn(urls: list[str], dest: Path, default_mime: str, max_mb: int) ->
 # --------------------------------------------------------------------------- Apify
 
 
-def fetch_apify(url: str, cfg: dict) -> Post:
+def _apify_run(run_input: dict, cfg: dict, limit: int = 5, timeout_s: int | None = None) -> list[dict]:
+    """Run the configured Instagram actor once and return its dataset items."""
     token = os.environ.get("APIFY_TOKEN", "").strip()
     if not token:
         raise Unavailable("APIFY_TOKEN not set")
@@ -130,16 +177,10 @@ def fetch_apify(url: str, cfg: dict) -> Post:
 
     fcfg = cfg["fetch"]
     client = ApifyClient(token)
-    run_input = {
-        "directUrls": [url],
-        "resultsType": "posts",
-        "resultsLimit": 1,
-        "addParentData": False,
-    }
     try:
         run = client.actor(fcfg["apify_actor"]).call(
             run_input=run_input,
-            run_timeout=timedelta(seconds=int(fcfg["apify_timeout_s"])),
+            run_timeout=timedelta(seconds=int(timeout_s or fcfg["apify_timeout_s"])),
             logger=None,
         )
     except ApifyApiError as e:
@@ -155,7 +196,84 @@ def fetch_apify(url: str, cfg: dict) -> Post:
     dataset_id = getattr(run, "default_dataset_id", None)
     if not dataset_id:
         raise FetchError("Apify: no dataset")
-    items = client.dataset(dataset_id).list_items(limit=5, clean=True).items or []
+    return [dict(i) for i in (client.dataset(dataset_id).list_items(limit=limit, clean=True).items or [])]
+
+
+def _owner_texts(comments: list, owner: str) -> list[str]:
+    """Texts of the comments (and replies) written by the post owner."""
+    out: list[str] = []
+    if not owner:
+        return out
+    for c in comments or []:
+        if not isinstance(c, dict):
+            continue
+        if str(c.get("ownerUsername") or "").lower() == owner.lower() and c.get("text"):
+            out.append(str(c["text"]))
+        for r in c.get("replies") or []:
+            if isinstance(r, dict) and str(r.get("ownerUsername") or "").lower() == owner.lower() and r.get("text"):
+                out.append(str(r["text"]))
+    return list(dict.fromkeys(out))
+
+
+def fetch_comments(url: str, owner: str, cfg: dict) -> list[str]:
+    """The creator's comments on a post, from a separate comments run (up to 50 comments)."""
+    items = _apify_run({"directUrls": [url], "resultsType": "comments", "resultsLimit": 50}, cfg, limit=60)
+    return _owner_texts(items, owner)
+
+
+_PROFILE_CACHE: dict[str, list[tuple[str, str]]] = {}
+
+
+def profile_links(username: str, cfg: dict) -> list[tuple[str, str]]:
+    """(title, url) of the links in a creator's bio. One Apify run per creator and run (cached)."""
+    key = username.lower()
+    if key in _PROFILE_CACHE:
+        return _PROFILE_CACHE[key]
+    links: list[tuple[str, str]] = []
+    try:
+        items = _apify_run({"directUrls": [f"https://www.instagram.com/{username}/"],
+                            "resultsType": "details", "resultsLimit": 1}, cfg, limit=1)
+        prof = items[0] if items else {}
+        for ln in prof.get("externalUrls") or []:
+            if isinstance(ln, dict) and str(ln.get("url") or "").startswith("http"):
+                links.append((str(ln.get("title") or ""), str(ln["url"])))
+        if str(prof.get("externalUrl") or "").startswith("http"):
+            links.append(("", str(prof["externalUrl"])))
+        for u in re.findall(r"https?://[^\s<>\"')]+", str(prof.get("biography") or "")):
+            links.append(("", u))
+    except FetchError as e:
+        _log(status="profile-error", author=username, error=str(e)[:160])
+    seen: set[str] = set()
+    links = [(t, u) for t, u in links if not (u in seen or seen.add(u))]
+    _PROFILE_CACHE[key] = links
+    return links
+
+
+def apify_usage() -> tuple[float, float] | None:
+    """(used USD, limit USD) of the Apify account this billing month, or None if unknown."""
+    token = os.environ.get("APIFY_TOKEN", "").strip()
+    if not token:
+        return None
+    try:
+        from apify_client import ApifyClient
+
+        lim = ApifyClient(token).user().limits()
+        used = float(getattr(getattr(lim, "current", None), "monthly_usage_usd", None))
+        cap = float(getattr(getattr(lim, "limits", None), "max_monthly_usage_usd", None))
+        return used, cap
+    except Exception:  # noqa: BLE001 - informational only
+        return None
+
+
+def fetch_apify(url: str, cfg: dict) -> Post:
+    fcfg = cfg["fetch"]
+    run_input = {
+        "directUrls": [url],
+        "resultsType": "posts",
+        "resultsLimit": 1,
+        "addParentData": False,
+    }
+    items = _apify_run(run_input, cfg)
     if not items:
         raise Blocked("Apify returned no items (private, login-only or blocked)")
     item = dict(items[0])
@@ -165,8 +283,14 @@ def fetch_apify(url: str, cfg: dict) -> Post:
         if _looks_blocked(text):
             raise Blocked(f"Apify: {text[:160]}")
         raise FetchError(f"Apify: {text[:160]}")
+    missing = [k for k in _EXPECTED_POST_FIELDS if k not in item]
+    if missing:
+        _log(status="apify-format-warning", url=url, actor=fcfg["apify_actor"], missing=missing,
+             msg="The Apify actor's output changed; check fetchers.py")
 
     caption = item.get("caption") or ""
+    owner = str(item.get("ownerUsername") or "")
+    owner = owner if USERNAME_RE.match(owner) else ""
     ptype = str(item.get("type") or item.get("productType") or "").lower()
     videos: list[str] = []
     images: list[str] = []
@@ -199,7 +323,11 @@ def fetch_apify(url: str, cfg: dict) -> Post:
             return download_cdn(videos[:1], dest, "video/mp4", max_mb)
         return download_cdn(images[:max_images], dest, "image/jpeg", max_mb)
 
-    return Post(url, caption, kind, "apify", videos, images, _dl if (videos or images) else None)
+    more = (lambda: fetch_comments(url, owner, cfg)) if owner else None
+    return Post(url, caption, kind, "apify", videos, images, _dl if (videos or images) else None,
+                author=owner, author_name=str(item.get("ownerFullName") or ""),
+                creator_comments=_owner_texts(item.get("latestComments") or [], owner),
+                _more_comments=more)
 
 
 # --------------------------------------------------------------------------- yt-dlp
@@ -271,6 +399,8 @@ def fetch_ytdlp(url: str, cfg: dict) -> Post:
 
     entries = [e for e in (info.get("entries") or []) if e] if info.get("_type") == "playlist" else [info]
     caption = info.get("description") or next((e.get("description") for e in entries if e.get("description")), "") or ""
+    owner = next((str(v) for v in (info.get("channel"), info.get("uploader_id"), info.get("uploader"))
+                  if v and USERNAME_RE.match(str(v)) and not str(v).isdigit()), "")
     has_video = any(e.get("formats") or e.get("url") for e in entries)
     kind = "video" if len(entries) == 1 and has_video else ("carousel" if len(entries) > 1 else "unknown")
     max_mb = int(fcfg["max_media_mb"])
@@ -299,7 +429,8 @@ def fetch_ytdlp(url: str, cfg: dict) -> Post:
         files = sorted(p for p in dest.iterdir() if p.is_file() and not p.name.endswith(".part"))
         return [MediaFile(p, _guess_mime(p, None, "video/mp4")) for p in files]
 
-    return Post(url, caption, kind, "ytdlp", _downloader=_dl if has_video else None)
+    return Post(url, caption, kind, "ytdlp", _downloader=_dl if has_video else None, author=owner,
+                _more_comments=(lambda: fetch_comments(url, owner, cfg)) if owner else None)
 
 
 # --------------------------------------------------------------------------- chain

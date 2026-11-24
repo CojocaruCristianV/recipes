@@ -18,3 +18,8 @@ CAPTION:
 <<<
 $caption
 >>>
+
+CREATOR'S OWN COMMENTS ON THE POST (treat like caption text):
+<<<
+$comments
+>>>

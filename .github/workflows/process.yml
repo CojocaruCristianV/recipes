@@ -16,11 +16,9 @@ on:
         required: false
         default: ""
 
+# Read-only by default; each job asks for only what it needs.
 permissions:
-  contents: write
-  issues: write
-  pages: write
-  id-token: write
+  contents: read
 
 # GitHub keeps only one pending run per group, so every run drains the whole queue.
 concurrency:
@@ -40,6 +38,10 @@ jobs:
       )
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Pushes recipes.json and labels / comments on / closes issues. No Pages access.
+    permissions:
+      contents: write
+      issues: write
     outputs:
       published: ${{ steps.run.outputs.published }}
     steps:
@@ -89,6 +91,11 @@ jobs:
       (needs.process.outputs.published == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Publishes the site only. Cannot push to the repo or touch issues.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     concurrency:
       group: pages
       cancel-in-progress: false

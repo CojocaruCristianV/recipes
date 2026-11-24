@@ -3,6 +3,9 @@
 *.cookies.txt
 cookies*.txt
 
+# Debug output of: python -m recipebot --probe <url>
+.probe/
+
 # Python
 __pycache__/
 *.py[cod]

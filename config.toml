@@ -31,6 +31,11 @@ light_retry = true
 # Extraction needs little reasoning; LOW is faster and less likely to hit busy errors.
 # Switched off automatically if the model does not support it.
 thinking_level = "LOW"
+# Minimum seconds between two Gemini requests (the free tier allows about 10-15 per minute).
+min_interval_s = 4.5
+# A 429 that is a per-minute limit (not the daily quota) waits this long and retries the same
+# model, one entry per retry. Only a daily-quota 429 takes a model out for the rest of the run.
+rpm_waits_s = [20, 40]
 
 [fetch]
 # Fetcher chain for GitHub-hosted runs. Valid: "apify", "ytdlp".
@@ -43,6 +48,46 @@ apify_timeout_s = 180
 # Media download limits.
 max_media_mb = 200
 max_images = 10
+
+[web]
+# Look for the full recipe on the web when the caption does not contain it: links in the
+# caption and in the creator's comments, then the creator's bio links (link pages and the
+# creator's own site, searched for the dish). Paid or paywalled recipes are never used.
+enabled = true
+# Read the creator's bio links (one extra Apify run per creator and run).
+follow_bio_links = true
+# Sites that block plain requests are fetched through this Apify actor instead.
+apify_fallback = true
+apify_actor = "apify/cheerio-scraper"
+apify_timeout_s = 120
+max_apify_runs = 2
+# Limits per recipe: pages fetched, recipe pages opened, bio links followed, seconds spent.
+max_fetches = 15
+max_pages = 6
+max_bio_links = 3
+max_seconds = 120
+timeout_s = 12
+max_page_mb = 3
+# Page text sent to Gemini when a page has no structured recipe data.
+max_text_chars = 12000
+# How closely a page's recipe name must match the post's dish (0-1).
+min_name_score = 0.7
+# Link-in-bio services: their pages are lists of links, never the recipe itself.
+link_pages = [
+  "linktr.ee", "beacons.ai", "stan.store", "linkin.bio", "lnk.bio", "campsite.bio", "hoo.be",
+  "bio.site", "carrd.co", "taplink.cc", "solo.to", "msha.ke", "komi.io", "flow.page", "linkpop.com",
+  "allmylinks.com", "snipfeed.co", "milkshake.app", "later.com",
+]
+# Never fetched: social networks, shops, affiliate and link-shortener hosts, video sites.
+skip_hosts = [
+  "instagram.com", "facebook.com", "fb.com", "tiktok.com", "youtube.com", "youtu.be", "x.com",
+  "twitter.com", "threads.net", "pinterest.com", "pin.it", "snapchat.com", "linkedin.com",
+  "spotify.com", "apple.com", "amazon.*", "amzn.to", "a.co", "amzlink.to", "liketk.it", "ltk.app",
+  "shopltk.com", "shopmy.us", "taap.it", "tapthe.link", "geni.us", "bit.ly", "tinyurl.com",
+  "gotourl.es", "lnk.to", "teachable.com", "gumroad.com", "patreon.com", "kit.com", "convertkit.com",
+  "substack.com", "etsy.com", "ebay.*", "walmart.com", "target.com", "givebrite.com", "gofundme.com",
+  "google.com", "goo.gl", "wa.me", "t.me", "discord.gg", "onlyfans.com",
+]
 
 [run]
 # Upper bound of items per run and a time budget that keeps the job under its 15 min timeout.

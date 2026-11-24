@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from .config import ROOT
-from .models import RECIPE_FIELDS, Recipe
+from .models import FIELD_DEFAULTS, RECIPE_FIELDS, Recipe
 
 RECIPES = ROOT / "recipes.json"
 
@@ -47,6 +47,7 @@ class Published:
 
 
 def load(path: Path | None = None) -> list[dict]:
+    """Read recipes.json. Fields added in later versions are filled with their defaults."""
     path = path or RECIPES
     if not path.exists():
         return []
@@ -54,7 +55,31 @@ def load(path: Path | None = None) -> list[dict]:
     data = json.loads(text) if text else []
     if not isinstance(data, list):
         raise ValueError("recipes.json must contain a JSON array")
-    return data
+    return [upgrade(r) if isinstance(r, dict) else r for r in data]
+
+
+def upgrade(record: dict) -> dict:
+    """Add missing newer fields and put the keys in the standard order (extra keys kept last)."""
+    rec = {**FIELD_DEFAULTS, **record}
+    ordered = {k: rec[k] for k in RECIPE_FIELDS if k in rec}
+    ordered.update({k: v for k, v in rec.items() if k not in ordered})
+    return ordered
+
+
+def invalid_entries(records: list) -> list[str]:
+    """Human-readable problems in recipes.json, one per bad entry (empty list if all are valid)."""
+    out = []
+    for i, r in enumerate(records):
+        if not isinstance(r, dict):
+            out.append(f"entry {i + 1}: not an object")
+            continue
+        try:
+            Recipe.model_validate(upgrade(r))
+        except Exception as e:  # noqa: BLE001 - reported, never raised
+            first = str(e).splitlines()
+            out.append(f"entry {i + 1} ({r.get('url') or r.get('name') or '?'}): "
+                       f"{' '.join(first[1:3]) if len(first) > 2 else first[0]}"[:240])
+    return out
 
 
 def distinct(recipes: list[dict], key: str) -> list[str]:
@@ -71,7 +96,12 @@ def urls(recipes: list[dict]) -> set[str]:
 
 
 def _check(records: list[dict]) -> None:
-    for r in records:  # guard the format: never write extra fields or a missing url
+    """Guard the format of records this run writes: never extra fields or a missing url.
+
+    Only new and updated records are checked. A broken entry that is already in the file
+    (for example from a hand edit) is left alone, so it can never block publishing.
+    """
+    for r in records:
         if set(r) != set(RECIPE_FIELDS) or not r.get("url"):
             raise ValueError(f"Invalid recipe entry for {r.get('url')!r}")
 
@@ -79,11 +109,10 @@ def _check(records: list[dict]) -> None:
 def merge(existing: list[dict], new: list[Recipe]) -> list[dict]:
     """Newest first. A new recipe replaces an existing entry with the same url."""
     fresh = [r.to_json() for r in reversed(new)]
+    _check(fresh)
     new_urls = {r["url"] for r in fresh}
-    rest = [r for r in existing if r.get("url") not in new_urls]
-    out = fresh + rest
-    _check(out)
-    return out
+    rest = [r for r in existing if not isinstance(r, dict) or r.get("url") not in new_urls]
+    return fresh + rest
 
 
 def apply_updates(records: list[dict], updates: list[Update]) -> tuple[list[dict], list, list]:
@@ -91,8 +120,8 @@ def apply_updates(records: list[dict], updates: list[Update]) -> tuple[list[dict
 
     Later updates see the result of earlier ones. Returns (records, applied, errors).
     """
-    out = [dict(r) for r in records]
-    index = {r.get("url"): i for i, r in enumerate(out)}
+    out = [dict(r) if isinstance(r, dict) else r for r in records]
+    index = {r.get("url"): i for i, r in enumerate(out) if isinstance(r, dict)}
     applied: list = []
     errors: list = []
     for u in updates:
@@ -112,10 +141,10 @@ def apply_updates(records: list[dict], updates: list[Update]) -> tuple[list[dict
             applied.append(None)
             errors.append(ValueError("An update may not change the recipe link"))
             continue
+        _check([after])
         out[i] = after
         applied.append((before, after))
         errors.append(None)
-    _check(out)
     return out, applied, errors
 
 
@@ -166,8 +195,13 @@ def publish(new: list[Recipe], updates: list[Update] | None = None, max_attempts
     rel = RECIPES.relative_to(ROOT).as_posix()
     for attempt in range(max_attempts):
         _git("pull", "--rebase", "--autostash", "-q")
-        current = load()
-        merged, applied, errors = apply_updates(merge(current, new), updates)
+        try:
+            current = load()
+            merged, applied, errors = apply_updates(merge(current, new), updates)
+        except (ValueError, OSError) as e:
+            # e.g. recipes.json is not valid JSON after a hand edit. PublishError makes the
+            # caller put every item back to "queued" instead of losing it.
+            raise PublishError(f"recipes.json could not be read or merged: {e}") from None
         res = Published(applied=applied, errors=errors)
         if merged == current:
             return res

@@ -112,6 +112,8 @@
   h1, .serif { font-family: var(--serif); }
   h1 { font-weight: 700; font-size: 34px; line-height: 1.08; letter-spacing: -.4px; margin: 0; }
   .sub { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .credit { color: var(--muted); font-size: 14px; margin-top: 4px; overflow-wrap: anywhere; }
+  .credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
   .icon-btn {
     width: 44px; height: 44px; border-radius: 22px; display: inline-grid; place-items: center; flex: 0 0 auto;
     color: var(--text); background: var(--chip);
@@ -924,6 +926,8 @@
       out.push({
         name: str(r.name), cuisine: str(r.cuisine), type: str(r.type), time: str(r.time),
         ingredients: arr(r.ingredients), steps: arr(r.steps), url: str(r.url),
+        author: /^[A-Za-z0-9._]{1,30}$/.test(str(r.author)) ? str(r.author) : "",
+        source: /^https?:\/\/\S+$/i.test(str(r.source)) ? str(r.source) : "",
         needs_review: r.needs_review === true, added: str(r.added),
         _i: i, _id: id, _min: parseMinutes(r.time),
       });
@@ -934,7 +938,7 @@
       r._ord = i;
       r._ingF = r.ingredients.map(fold);
       r._headF = fold(r.name + "\n" + r.cuisine + "\n" + r.type);
-      r._hay = r._headF + "\n" + r._ingF.join("\n");
+      r._hay = r._headF + "\n" + r._ingF.join("\n") + (r.author ? "\n" + fold(r.author) : "");
     });
     return out;
   }
@@ -1463,6 +1467,20 @@
     return h;
   }
 
+  // "by @author" (links to the Instagram profile) and "Recipe from <site>" when the recipe came from a web page.
+  function credit(r) {
+    const parts = [];
+    if (r.author) {
+      parts.push('by <a href="https://www.instagram.com/' + esc(r.author) + '/" target="_blank" rel="noopener">@' + esc(r.author) + "</a>");
+    }
+    if (r.source) {
+      let host = "";
+      try { host = new URL(r.source).hostname.replace(/^www\./i, ""); } catch (_) {}
+      if (host) parts.push('Recipe from <a href="' + esc(r.source) + '" target="_blank" rel="noopener">' + esc(host) + "</a>");
+    }
+    return parts.length ? '<div class="credit">' + parts.join(" \u00b7 ") + "</div>" : "";
+  }
+
   function viewRecipe(id) {
     const r = byId.get(id);
     const bar = '<div class="backbar"><button class="back" type="button" data-act="back">' + icon("back") + "Back</button></div>";
@@ -1495,6 +1513,7 @@
       '<h1 class="r-title">' + esc(r.name) + "</h1>" +
       '<div class="sub">' + esc([r.cuisine, r.type].filter(Boolean).join(" \u00b7 ")) +
         (r.needs_review ? '<span class="tag-review">Review</span>' : "") + "</div>" +
+      credit(r) +
       '<div class="facts">' + facts.map(([v, l]) => '<div class="fact"><b>' + esc(v) + "</b><span>" + l + "</span></div>").join("") + "</div>" +
       '<div class="r-actions">' +
         '<button class="act-btn" type="button" data-act="save" data-id="' + esc(r._id) + '" aria-pressed="' + saved.has(r._id) + '">' +

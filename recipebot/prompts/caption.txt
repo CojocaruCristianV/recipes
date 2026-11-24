@@ -1,14 +1,25 @@
-Extract the recipe from this Instagram caption. Only the caption is available.
+Extract the recipe from this Instagram caption. Only the caption (and possibly the creator's
+own comments on the post) is available.
 
 Existing cuisine values (reuse one if it fits): $existing_cuisines
 Existing type values (reuse one if it fits): $existing_types
 
-Report honestly whether the caption contains the ingredient list (caption_has_ingredients)
-and the method (caption_has_steps). If one of them is missing, return what the caption does
-contain and leave the missing list empty; do not invent it. In that case also do not set
-needs_review just because that part is missing: it will be filled from the video.
+The creator's own comments, if any, are written by the same person as the caption. Treat them
+exactly like caption text: a recipe posted "in the comments" counts as being in the caption.
+Ignore comments that are only replies to followers.
+
+Report honestly whether the caption (with those comments) contains the ingredient list
+(caption_has_ingredients) and the method (caption_has_steps). If one of them is missing, return
+what is there and leave the missing list empty; do not invent it. In that case also do not set
+needs_review just because that part is missing: it will be filled from the creator's website
+or the video.
 
 CAPTION:
 <<<
 $caption
+>>>
+
+CREATOR'S OWN COMMENTS ON THE POST:
+<<<
+$comments
 >>>

@@ -7,6 +7,7 @@ shortcode, so they all map to one canonical URL. Query strings are dropped.
 from __future__ import annotations
 
 import re
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -47,18 +48,37 @@ def shortcode(url: str) -> str:
     return canonical(url).rstrip("/").rsplit("/", 1)[-1]
 
 
+def is_instagram_host(url: str) -> bool:
+    """True only for https URLs whose host really is instagram.com (or a subdomain of it)."""
+    p = urlparse(url or "")
+    host = (p.hostname or "").lower()
+    return p.scheme == "https" and (host == "instagram.com" or host.endswith(".instagram.com"))
+
+
 def resolve(url: str, timeout: int = 15) -> str:
-    """Canonicalize, following instagram.com/share/... redirects when needed."""
+    """Canonicalize, following instagram.com/share/... redirects when needed.
+
+    Share links are only requested when their host is instagram.com, and every redirect hop
+    is checked the same way, so a crafted link can never make the bot fetch another host.
+    """
     if not url:
         raise ValueError("Empty URL")
     if not _SHARE_RE.search(url):
         return canonical(url)
-    try:
-        r = requests.get(url, headers={"User-Agent": UA}, allow_redirects=True, timeout=timeout)
-    except requests.RequestException as e:
-        raise ValueError(f"Could not resolve share link: {type(e).__name__}") from None
-    candidates = [r.url] + [h.headers.get("Location", "") for h in r.history]
-    for cand in candidates:
-        if cand and not _SHARE_RE.search(cand) and _SHORTCODE_RE.search(cand):
-            return canonical(cand)
+    if not is_instagram_host(url):
+        raise ValueError(f"Not an instagram.com link: {url[:120]}")
+    current = url
+    for _ in range(5):
+        try:
+            r = requests.get(current, headers={"User-Agent": UA}, allow_redirects=False, timeout=timeout)
+        except requests.RequestException as e:
+            raise ValueError(f"Could not resolve share link: {type(e).__name__}") from None
+        loc = r.headers.get("Location", "")
+        if r.status_code not in (301, 302, 303, 307, 308) or not loc:
+            break
+        current = urljoin(current, loc)
+        if not is_instagram_host(current):
+            break
+        if not _SHARE_RE.search(current) and _SHORTCODE_RE.search(current):
+            return canonical(current)
     raise ValueError("Share link did not resolve to a post/reel URL")

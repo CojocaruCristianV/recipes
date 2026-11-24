@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
 
-from . import clean, edits, fetchers, store, urls
+from . import clean, edits, fetchers, store, urls, web
 from .gemini import Gemini, GeminiBusy, GeminiError, ModelUnavailable, QuotaExceeded, media_kind
 from .models import Extraction, Recipe
 
@@ -34,12 +34,22 @@ STATUS_LABELS = [
 STEP_TEXT = {
     "fetch": "fetching the post",
     "caption": "reading the caption",
+    "web": "looking for the recipe on the creator's website",
     "download": "downloading the video",
     "video": "reading the video",
     "images": "reading the images",
     "build": "building the recipe",
     "edit": "applying the edit",
 }
+
+# Captions that point to the recipe in the comments ("full recipe in the comments", "comment
+# RECIPE and I'll send it"). "Let me know in the comments" must not match.
+_COMMENT_HINT_RE = re.compile(
+    r"(?i)\b(?:recipe|ingredients|measurements|instructions|method)\b[^.\n]{0,40}"
+    r"\b(?:in|below|pinned)\b[^.\n]{0,20}\bcomments?\b|\bpinned comment\b|"
+    r"\b(?:recipe|ingredients)\s+(?:is\s+|are\s+)?below\b"
+)
+_COMMENT_KEYWORD_RE = re.compile(r"\b[Cc]omment\s+[\"'\u201c]?[A-Z]{3,}\b")
 
 RETRY_HOWTO = (
     "**To try again:** add the `retry` label to this issue. In the GitHub app: open the issue, "
@@ -116,6 +126,9 @@ class _Work:
     post: fetchers.Post | None = None
     cap: Extraction | None = None
     cap_done: bool = False
+    comments_done: bool = False
+    web_done: bool = False
+    source_url: str = ""  # web page the recipe came from, "" if from Instagram
     media: list[fetchers.MediaFile] | None = None
     media_mb: float | None = None
     step: str = "fetch"
@@ -185,21 +198,103 @@ class Processor:
             work.media_mb = round(sum(m.size for m in work.media) / 1048576, 1) if work.media else 0.0
         return work.media
 
+    @staticmethod
+    def _points_to_comments(caption: str) -> bool:
+        return bool(_COMMENT_HINT_RE.search(caption) or _COMMENT_KEYWORD_RE.search(caption))
+
+    def _find_on_web(self, work: _Work, caption: str, cap: Extraction | None,
+                     cuisines: list[str], types_: list[str]) -> tuple[Extraction, str] | None:
+        """The full recipe from the creator's web page, or None. Runs at most once per item."""
+        if work.web_done or not self.cfg["web"].get("enabled", True):
+            return None
+        work.web_done = True
+        post = work.post
+        assert post is not None
+        first_line = next((ln.strip() for ln in caption.splitlines() if ln.strip()), "")[:120]
+        dish = [d for d in ((cap.name if cap else ""), clean.clean_line(first_line)) if d]
+        if not dish:
+            return None
+        comment_text = "\n".join(post.creator_comments)
+        author = post.author
+
+        def bio() -> list[tuple[str, str]]:
+            if not author or "apify" not in self.cfg["fetch"]["order"] or not os.environ.get("APIFY_TOKEN"):
+                return []
+            return fetchers.profile_links(author, self.cfg)
+
+        lookup = web.Lookup(
+            dish=dish,
+            known_ingredients=list(cap.ingredients) if cap else [],
+            caption_links=web.links_in_text(caption),
+            comment_links=web.links_in_text(comment_text),
+            creator_ids=[x for x in (author, post.author_name) if x],
+            bio_links=bio,
+        )
+        work.step = "web"
+        w = web.Web(self.cfg, self._deadline)
+        try:
+            found = web.Finder(w, self.cfg).find(lookup)
+        except Exception as e:  # noqa: BLE001 - the web search is a bonus, never fatal
+            log(url=post.url, status="web-error", error=sanitize(f"{type(e).__name__}: {e}"))
+            return None
+        log(url=post.url, status="web-search", found=found.url if found else None,
+            fetched=w.fetches, apify_runs=w.apify_runs or None, tried=lookup.tried[-8:] or None)
+        if not found:
+            return None
+        if found.recipe:
+            r = found.recipe
+            ex = Extraction(
+                is_recipe=True,
+                name=(cap.name if cap and cap.name else r.name) or r.name,
+                cuisine=cap.cuisine if cap else "",
+                type=cap.type if cap else "",
+                time=web.fmt_minutes(r.minutes) or (cap.time if cap else ""),
+                ingredients=r.ingredients, steps=r.steps,
+                caption_has_ingredients=True, caption_has_steps=True,
+                needs_review=False, review_reason="",
+            )
+            if not ex.cuisine or not ex.type:
+                # A tiny text-only call fills cuisine and type when the caption gave nothing.
+                guess = self.gemini.from_caption(f"{r.name}\n" + "\n".join(r.ingredients[:15]), cuisines, types_)
+                ex.cuisine, ex.type = ex.cuisine or guess.cuisine, ex.type or guess.type
+        else:
+            ex = self.gemini.from_web(found.text, found.title, found.url, caption, cuisines, types_)
+            if not ex.is_recipe or not (ex.ingredients and ex.steps):
+                log(url=post.url, status="web-skip", page=found.url, reason="page text had no full recipe")
+                return None
+        work.source_url = found.url
+        return ex, f"website ({found.via})"
+
     def _extract(self, work: _Work, cuisines: list[str], types_: list[str]) -> tuple[Extraction, str, bool, bool]:
-        """Return (extraction, source, ingredients_from_caption, steps_from_caption)."""
+        """Return (extraction, source, ingredients_from_caption, steps_from_caption).
+
+        Sources, first complete one wins: the caption with the creator's own comments, the
+        creator's web page (links in caption or comments, then bio links), then the video or
+        images for whatever is still missing.
+        """
         post = work.post
         assert post is not None
         caption = (post.caption or "").strip()
-        if caption and not work.cap_done:
+        if not work.comments_done:
+            work.comments_done = True
+            if self._points_to_comments(caption) and not post.creator_comments:
+                post.more_comments()
+        comments = post.creator_comments
+        if (caption or comments) and not work.cap_done:
             work.step = "caption"
-            work.cap = self.gemini.from_caption(caption, cuisines, types_)
+            work.cap = self.gemini.from_caption(caption, cuisines, types_, comments)
             work.cap_done = True
         cap = work.cap
         cap_ing = bool(cap and cap.caption_has_ingredients and cap.ingredients)
         cap_steps = bool(cap and cap.caption_has_steps and cap.steps)
         if cap_ing and cap_steps:
             assert cap is not None
-            return cap, "caption", True, True
+            return cap, "caption + comments" if comments and not caption else "caption", True, True
+
+        found = self._find_on_web(work, caption, cap, cuisines, types_)
+        if found:
+            ex, source = found
+            return ex, source, True, True
 
         missing = [p for p, have in (("ingredients", cap_ing), ("steps", cap_steps)) if not have]
         if post.has_media:
@@ -208,7 +303,7 @@ class Processor:
                 kind = media_kind(media)
                 work.step = kind
                 try:
-                    med = self.gemini.from_media(caption, media, missing, cuisines, types_)
+                    med = self.gemini.from_media(caption, media, missing, cuisines, types_, comments)
                 except GeminiBusy:
                     # Keep what the caption gave instead of losing the recipe; the gap is
                     # marked TBD and flagged for review (fix later by editing or re-reading).
@@ -239,7 +334,7 @@ class Processor:
         return cap, "caption (partial)", cap_ing, cap_steps
 
     def _build(self, ex: Extraction, url: str, from_cap_ing: bool, from_cap_steps: bool,
-               cuisines: list[str], types_: list[str]) -> Recipe:
+               cuisines: list[str], types_: list[str], author: str = "", source: str = "") -> Recipe:
         ingredients = clean.clean_lines(ex.ingredients, numbering=False)
         steps = clean.clean_lines(ex.steps, numbering=True)
         if not ex.is_recipe or (not ingredients and not steps):
@@ -260,6 +355,8 @@ class Processor:
             ingredients=ingredients,
             steps=steps,
             url=url,  # always set in code, never by the model
+            author=author if fetchers.USERNAME_RE.match(author or "") else "",
+            source=source if re.match(r"^https?://\S+$", source or "") and len(source) <= 500 else "",
             needs_review=needs_review,
             added=self.today(),
         )
@@ -293,7 +390,9 @@ class Processor:
         def run(work: _Work) -> Outcome:
             ex, source, ci, cs = self._extract(work, cuisines, types_)
             work.step = "build"
-            recipe = self._build(ex, item.canonical, ci, cs, cuisines, types_)
+            assert work.post is not None
+            recipe = self._build(ex, item.canonical, ci, cs, cuisines, types_,
+                                 author=work.post.author, source=work.source_url)
             return self._out(item, work, "ok", recipe=recipe, source=source, review_reason=ex.review_reason)
 
         with tempfile.TemporaryDirectory(prefix="rb_media_") as tmp:
@@ -513,6 +612,9 @@ class Processor:
             "stopped": stopped or None,
             "statuses": {s: sum(1 for o in outcomes if o.status == s) for s in {o.status for o in outcomes}},
         }
+        usage = fetchers.apify_usage()
+        if usage:
+            summary["apify_usd"] = f"{usage[0]:.2f} of {usage[1]:.2f} this month"
         log(status="run-summary", **summary)
         return summary
 
@@ -537,7 +639,13 @@ class Processor:
         elif o.status == "nothing":
             self._set(item, ["failed"], close="not_planned",
                       comment=f"**Nothing to re-read.** {o.error} The recipe was not changed.")
-        elif o.status in ("quota", "model-unavailable"):
+        elif o.status == "quota":
+            self._set(item, ["queued"], comment=(
+                f"**Gemini's daily free quota is used up** (on every model) while {step}. Nothing is "
+                f"lost: {what} stays queued and runs automatically once the quota resets (the daily "
+                "morning run or your next share).\n\n"
+                f"`{o.error[:200]}`"))
+        elif o.status == "model-unavailable":
             self._set(item, ["queued"])
         elif o.status == "busy":
             tries = f"tried {o.retries} more time{'s' if o.retries != 1 else ''}" if o.retries else "no time left to retry"
@@ -581,8 +689,10 @@ class Processor:
             f"{r.cuisine} \u00b7 {r.type} \u00b7 {r.time} \u00b7 source: {o.source}"
             + (f" \u00b7 model: {o.model}" if o.model else ""),
             "",
-            f"Original: {r.url}",
+            f"Original: {r.url}" + (f" by @{r.author}" if r.author else ""),
         ]
+        if r.source:
+            lines.append(f"Recipe from: {r.source}")
         site = self._site_url(r.url)
         if site:
             lines.append(f"Library: {site}")
