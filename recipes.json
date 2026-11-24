@@ -1,5 +1,43 @@
 [
   {
+    "name": "Caesar Parmesan Potato Salad",
+    "cuisine": "Various",
+    "type": "Salad",
+    "time": "1 h 15 min",
+    "ingredients": [
+      "1kg Baby Potatoes, halved and boiled until fork tender",
+      "Salt for boiling",
+      "Freshly grated Parmesan",
+      "Handful of Parsley finely chopped",
+      "200g guanciale",
+      "Seasoning for potatoes - i’m using zest chicken salt",
+      "2/3 cup mayo",
+      "1/3 cup greek yogurt",
+      "30g grated parmesan",
+      "juice of 1 lemon",
+      "2 garlic cloves, minced",
+      "drizzle of olive oil",
+      "2 tsp Worcestershire",
+      "1 tsp dijon",
+      "2 anchovies, minced",
+      "salt and pepper"
+    ],
+    "steps": [
+      "In a blender, add all of your caesar ingredients and blitz until smooth. In the video I did it all by hand which you can also do but in the blender is quicker and tastes the same. Set dressing in the fridge until ready to use",
+      "In a pot of cold, salted water, add your potatoes, bring to a boil and strain once they’re fork tender",
+      "Place a lid on top of your strainer and shake about to get craggily bits on your potato which help the crisping process",
+      "Preheat oven at 220c and add your baking tray with either olive oil, duck fat or tallow and heat for 5 minutes then add your potatoes",
+      "Cook for 45 minutes, flipping 2-3 times so all sides become crispy",
+      "In a cold pan, add your guanciale and cook on medium heat stirring occasionally until nice and crispy then strain",
+      "Add to a bowl your crispy seasoned potatoes, guanciale, parsley, parmesan and caesar, toss to combine and serve"
+    ],
+    "url": "https://www.instagram.com/p/DgHJqd9gVgf/",
+    "author": "nunnamaryskitchen",
+    "source": "",
+    "needs_review": false,
+    "added": "2026-11-24"
+  },
+  {
     "name": "Braised Beef Cheeks",
     "cuisine": "British",
     "type": "Main",
