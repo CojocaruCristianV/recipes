@@ -1,5 +1,42 @@
 [
   {
+    "name": "Creamy Sausage and Broccoli Rigatoni",
+    "cuisine": "Italian",
+    "type": "Main",
+    "time": "25 min",
+    "ingredients": [
+      "~4 pork sausages, casings removed",
+      "~200 g tenderstem broccoli, chopped",
+      "~1 onion, finely diced",
+      "~3 cloves garlic, sliced",
+      "~250 g rigatoni pasta",
+      "~50 g grated Parmesan cheese",
+      "~3 egg yolks",
+      "black pepper",
+      "salt",
+      "olive oil"
+    ],
+    "steps": [
+      "Remove casings from sausages and crumble the meat.",
+      "Chop tenderstem broccoli and dice the onion.",
+      "Thinly slice garlic cloves.",
+      "Cook rigatoni in a pot of salted boiling water.",
+      "In a large pan, sauté the sausage meat in olive oil until browned.",
+      "Add diced onion and continue cooking until softened.",
+      "Add sliced garlic and sauté.",
+      "Add chopped broccoli and splash in some pasta water.",
+      "In a bowl, mix grated Parmesan cheese with egg yolks, black pepper, salt, and a splash of warm pasta water to form a smooth paste.",
+      "Transfer cooked rigatoni directly to the pan with sausage and broccoli.",
+      "Pour in the egg and cheese mixture, stirring continuously off or on very low heat to create a creamy sauce.",
+      "Serve topped with extra grated Parmesan, black pepper, and a drizzle of olive oil."
+    ],
+    "url": "https://www.instagram.com/p/Df7d47Oon2j/",
+    "author": "mush.kitchen",
+    "source": "",
+    "needs_review": false,
+    "added": "2026-11-24"
+  },
+  {
     "name": "Caesar Parmesan Potato Salad",
     "cuisine": "Various",
     "type": "Salad",
