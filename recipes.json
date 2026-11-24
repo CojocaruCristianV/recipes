@@ -1,5 +1,47 @@
 [
   {
+    "name": "Braised Beef Cheeks",
+    "cuisine": "British",
+    "type": "Main",
+    "time": "5 h",
+    "ingredients": [
+      "~2 beef cheeks",
+      "salt",
+      "~1 tbsp olive oil",
+      "~2 carrots, roughly chopped",
+      "~4 shallots, halved",
+      "~2 sprigs rosemary",
+      "1 whole head garlic, halved horizontally",
+      "~2 tbsp tomato paste",
+      "1 bottle (750 ml) dry red wine",
+      "1 bottle (500 ml) stout (or beef stock)",
+      "~2 tbsp cold butter",
+      "chopped chives",
+      "mashed potatoes, for serving"
+    ],
+    "steps": [
+      "Season beef cheeks with salt.",
+      "Sear beef cheeks in a hot, oiled pan until deep brown crust forms on both sides, then remove.",
+      "Add carrots and shallots to the pan and soften for 5 to 10 minutes.",
+      "Add rosemary and halved garlic bulb.",
+      "Add tomato paste and cook out the tartness.",
+      "Pour in red wine.",
+      "Nestle beef cheeks back into the pan and top up with stout.",
+      "Cover with a parchment paper cartouche and the lid.",
+      "Bake in the oven at 150°C for around 4.5 hours.",
+      "Remove beef cheeks and strain the braising liquid into a saucepan.",
+      "Bring the liquid to a simmer to reduce.",
+      "Whisk in cold butter until glossy.",
+      "Return beef cheeks to the sauce to heat through.",
+      "Serve over mashed potatoes, spoon sauce over top, and garnish with chopped chives."
+    ],
+    "url": "https://www.instagram.com/p/DboCGPKhxyO/",
+    "author": "jack_munn",
+    "source": "",
+    "needs_review": false,
+    "added": "2026-11-24"
+  },
+  {
     "name": "Roasted Carrot And Chickpea Farro Salad",
     "cuisine": "Various",
     "type": "Salad",
