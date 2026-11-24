@@ -192,8 +192,8 @@ Open the site from a **Home Screen icon** (Safari → Share → **Add to Home Sc
 
 | Tab | What it shows |
 |---|---|
-| **Home** | **In the spotlight** (6 random recipes, the same all day; **Shuffle** picks others), Continue cooking (recipes you opened lately; appears after you open one), Recently added, **Browse by cuisine** tiles and **Types** chips. Tapping a tile or chip opens Browse filtered to it. The gear icon opens Settings. |
-| **Browse** | Every recipe with search, filters and sort. |
+| **Home** | **In the spotlight** (6 random recipes, the same all day; **Shuffle** picks others), Continue cooking (recipes you opened lately; appears after you open one), Recently added, **Browse by cuisine** tiles and **Types** chips. Tapping a tile or chip opens Browse filtered to it. The **+** button adds a recipe from a link; the gear icon opens Settings. |
+| **Browse** | Every recipe with search, filters and sort. The **+** button adds a recipe from a link. |
 | **Saved** | Recipes you saved with the heart, most recently saved first. |
 | **List** | Your shopping list. The badge shows how many items are still to buy. |
 
@@ -235,6 +235,18 @@ The **Keep screen on** switch on the recipe page stops the phone from dimming an
 - Items are grouped by recipe. Adding the same recipe again does not create duplicates; an item you had ticked off is unticked instead.
 - Tap an item to tick it off. **Clear checked** removes ticked items. The × next to a recipe removes its whole group.
 - **Copy / Share** sends the items still to buy as plain text: the share sheet on a phone (Notes, Messages, Reminders), the clipboard on a computer.
+
+### Adding a recipe from the site
+
+Useful on a computer, or on a phone without the Shortcut.
+
+1. Tap **+** on Home or Browse.
+2. Paste an Instagram post or reel link (or tap **Paste**). A whole shared message works too; the first instagram.com link in it is used.
+3. Tap **Send**. The first time, the site asks for the GitHub token (see "The GitHub token" below).
+
+The site checks the link before sending: it must be an https instagram.com post, reel or tv link, or an `instagram.com/share/...` link. Post, reel and tv links are sent in the canonical `https://www.instagram.com/p/<code>/` form. If the recipe is already in the library, nothing is sent and the sheet links to it. Share links are sent unchanged, since only the bot can follow them; its own duplicate check covers them.
+
+Send creates a `recipe` + `queued` issue, the same as the Shortcut, so the bot starts within a minute. The toast shows the issue number. The **+** sheet lists links sent from this device that haven't arrived yet; while one is fresh, the site checks for new recipes every 20 seconds and shows **Added: name** when it lands. The list is kept on this device only (not in backups) and entries are dropped after a day.
 
 ### Editing a recipe
 
@@ -320,7 +332,9 @@ To move from Safari to the Home Screen app, or to a new phone: Export on the old
 | **Wrong cuisine / type** | Use **Edit** on the recipe page, or edit `recipes.json` directly (keep the format). Future runs reuse whatever values are there. Prompts are in `recipebot/prompts/`. |
 | **Site: "GitHub did not accept the token"** (401) | The token expired, was revoked or was pasted wrong. The site forgets it and asks again; your edit is kept. Paste the current token (the same one as in your Shortcut, if you rotated it there). |
 | **Site: "The token cannot create issues"** (403 / 404) | The token isn't scoped to `recipes`, or Issues isn't set to Read and write. A 404 also happens if Issues is disabled in repo Settings. |
-| **Site: "GitHub refused the request"** (422) | Usually the `edit` / `reread` labels don't exist yet. Run `create-labels.ps1` again. |
+| **Site: "GitHub refused the request"** (422) | Usually the `recipe` / `edit` / `reread` / `queued` labels don't exist yet. Run `create-labels.ps1` again. |
+| **Site: "That isn't an Instagram post or reel link"** | The pasted text has no https instagram.com `/p/`, `/reel/`, `/reels/`, `/tv/` or `/share/` link (profile and story links don't work). Copy the link from the post's share menu. |
+| **Added a link from the site, but it never shows up** | Open the issue from the **+** sheet to see what the bot said (failed, duplicate, needs-local...). Entries leave the waiting list after a day. |
 | **Site: "Not sent"** | The message says why (offline, GitHub error). Your changes are kept, so tap Send again. |
 | **"Edit not applied: changed since you started editing"** | Someone (or a re-read) changed the recipe after you opened Edit. Nothing was overwritten. Reload the recipe and make the edit again. |
 | **"Could not apply this edit"** | The edit was refused as invalid: an empty name, no ingredients or steps left, a line over 500 characters, or a recipe that was removed. Fix it and send again. |

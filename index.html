@@ -108,6 +108,10 @@
 
   /* ===== page header ===== */
   .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 10px 0 18px; }
+  .head-btns { display: flex; gap: 6px; flex: none; }
+  .state-act { margin-top: 16px; }
+  .add-wait { margin: 0; padding-left: 18px; }
+  .add-wait li { margin: 4px 0; }
   .page-head .titles { min-width: 0; }
   h1, .serif { font-family: var(--serif); }
   h1 { font-weight: 700; font-size: 34px; line-height: 1.08; letter-spacing: -.4px; margin: 0; }
@@ -1191,11 +1195,14 @@
 
   const grid = (list, opts) => '<div class="grid">' + list.map((r) => card(r, opts)).join("") + "</div>";
 
-  const EMPTY_SITE = '<div class="state"><b>Nothing here yet</b>Share an Instagram recipe from your phone ' +
-    "and it will show up here in a minute or two.</div>";
+  const EMPTY_SITE = '<div class="state"><b>Nothing here yet</b>Share an Instagram recipe from your phone, or paste its link here. ' +
+    "It will show up in a minute or two." +
+    '<div class="state-act"><button class="btn" type="button" data-act="addOpen" aria-haspopup="dialog">Add a recipe</button></div></div>';
 
   /* ----- home ----- */
   const settingsBtn = '<button class="icon-btn" type="button" data-act="openSettings" aria-haspopup="dialog" aria-label="Settings">' + icon("gear") + "</button>";
+  const addBtn = '<button class="icon-btn" type="button" data-act="addOpen" aria-haspopup="dialog" aria-label="Add a recipe">' + icon("plus") + "</button>";
+  const homeBtns = '<div class="head-btns">' + addBtn + settingsBtn + "</div>";
 
   function rowSection(title, list, more, cls) {
     if (!list.length) return "";
@@ -1235,7 +1242,7 @@
   }
 
   function viewHome() {
-    if (!recipes.length) return head("Recipes", "", settingsBtn) + EMPTY_SITE;
+    if (!recipes.length) return head("Recipes", "", homeBtns) + EMPTY_SITE;
     const cont = recentIds.map((id) => byId.get(id)).filter(Boolean).slice(0, 10);
     const shuffle = recipes.length > SPOT_N
       ? '<button class="link-btn" type="button" data-act="shuffle">' + icon("shuffle") + "Shuffle</button>" : "";
@@ -1246,7 +1253,7 @@
     }).join("");
     const types = counts("type").map(([t, n]) =>
       '<button class="chip" type="button" data-act="typeTile" data-v="' + esc(t) + '">' + esc(t) + " <small>" + n + "</small></button>").join("");
-    return head("Recipes", esc(plural(recipes.length, "recipe")), settingsBtn) +
+    return head("Recipes", esc(plural(recipes.length, "recipe")), homeBtns) +
       rowSection("In the spotlight", spotlight(), shuffle, "spot") +
       rowSection("Continue cooking", cont) +
       rowSection("Recently added", recipes.slice(0, 10), recipes.length > 10 ? '<button class="link-btn" type="button" data-act="seeNewest">See all</button>' : "") +
@@ -1305,11 +1312,11 @@
   }
 
   function viewBrowse() {
-    if (!recipes.length) return head("Browse") + EMPTY_SITE;
+    if (!recipes.length) return head("Browse", "", addBtn) + EMPTY_SITE;
     const res = browseResults();
     const s = sortDef(bstate.sort);
     const n = activeFilters().length;
-    return head("Browse", '<span id="bcount">' + esc(res.count) + "</span>") +
+    return head("Browse", '<span id="bcount">' + esc(res.count) + "</span>", addBtn) +
       '<div class="browse-bar" id="bbar">' +
         '<div class="search-row">' +
           '<label class="search">' + icon("browse") +
@@ -1593,7 +1600,7 @@
     }
     if (s === 422) {
       throw new GhError(s, "GitHub refused the request" + (detail ? " (" + detail + ")" : "") +
-        ". If the edit or reread labels are missing, run scripts/create-labels.ps1.");
+        ". If the recipe, edit, reread or queued labels are missing, run scripts/create-labels.ps1.");
     }
     throw new GhError(s, "GitHub error " + s + (detail ? ": " + detail : "") + ". Try again in a moment.");
   }
@@ -1699,9 +1706,10 @@
     requestAnimationFrame(() => el.scrollIntoView({ block: "nearest" }));
   }
 
-  // Typing in the edit page or the token box. Returns true when the event was handled.
+  // Typing in the edit page, the token box or the add box. Returns true when the event was handled.
   function onEditInput(el) {
     if (el.id === "tokIn") { tokDraft = el.value; return true; }
+    if (el.id === "addIn") { addDraft = el.value; return true; }
     if (!edit || !el.dataset) return false;
     if (el.dataset.ef) { edit.d[el.dataset.ef] = el.value; syncEditBar(); return true; }
     if (!el.dataset.el) return false;
@@ -1725,6 +1733,7 @@
     const el = e.target;
     if (e.key !== "Enter" || e.isComposing) return;
     if (el.id === "tokIn") { e.preventDefault(); saveToken(); return; }
+    if (el.id === "addIn") { e.preventDefault(); ACTIONS.addSend(); return; }
     if (!edit || e.shiftKey || !el.classList || !el.classList.contains("ed-ta")) return;
     e.preventDefault();
     const key = el.dataset.el, i = +el.dataset.i, l = edit.d[key];
@@ -1824,13 +1833,15 @@
       toast((p.kind === "reread" ? "Re-read" : "Edit") + " is live: " + r.name);
     });
     if (ch) pending.save();
+    checkAdds();
   }
   // While something is pending, look for the new recipes.json every 20 s (not while editing).
   let pendingTimer = 0;
   function watchPending() {
     clearTimeout(pendingTimer);
     pending.prune();
-    if (!Object.keys(pending.map).length) return;
+    adds.prune();
+    if (!Object.keys(pending.map).length && !adds.recent()) return;
     pendingTimer = setTimeout(async () => {
       if (document.visibilityState === "visible" && !edit && await load()) refresh();
       watchPending();
@@ -1854,7 +1865,7 @@
     openSheet({ title: "GitHub token", body: tokenBody, foot: tokenFoot, onClose: () => { tokNext = null; } });
   }
   function tokenBody() {
-    return '<p class="sum-intro">Edits are sent to GitHub with your own token. It is checked once, then kept <b>on this device only</b> ' +
+    return '<p class="sum-intro">New links and edits are sent to GitHub with your own token. It is checked once, then kept <b>on this device only</b> ' +
       "and never included in a backup. You can remove it in Settings.</p>" +
       '<section class="fgroup"><h3>From your Shortcut</h3><ol class="howto">' +
         "<li>Open <b>Shortcuts</b>, then <b>Save Recipe</b>.</li>" +
@@ -1959,6 +1970,109 @@
     pending.add(r, "reread", sent.number);
     refresh();
     toast("Re-read requested");
+  }
+
+  /* ================= adding a recipe from the site ================= */
+  // Same rules as recipebot/urls.py: the first instagram.com link in the text; /p/, /reel/, /reels/
+  // and /tv/ links (optionally after a username) become https://www.instagram.com/p/<code>/.
+  // instagram.com/share/ links cannot be resolved in the browser, so they are sent as they are
+  // and the bot resolves them.
+  const IG_URL = /https?:\/\/(?:[a-z0-9-]+\.)?instagram\.com\/[^\s<>"')\]]+/i;
+  const IG_CODE = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]{5,})/i;
+  // Returns { url, code } (code is "" for share links), or null when the text has no usable link.
+  function parseIg(text) {
+    const m = String(text || "").match(IG_URL);
+    if (!m) return null;
+    let host = "", proto = "";
+    try { const u = new URL(m[0]); host = u.hostname.toLowerCase(); proto = u.protocol; } catch (_) { return null; }
+    if (proto !== "https:" || !(host === "instagram.com" || host.endsWith(".instagram.com"))) return null;
+    if (/instagram\.com\/share\//i.test(m[0])) return { url: m[0], code: "" };
+    const c = m[0].match(IG_CODE);
+    return c ? { url: "https://www.instagram.com/p/" + c[1] + "/", code: c[1] } : null;
+  }
+
+  // Links sent from this device that are not in recipes.json yet: [{ code, n: issue, at: ms }].
+  // Own key outside the "rb." prefix, so it is not part of a backup. Entries go when the recipe
+  // arrives, or after a day (share links have no code, so they can only time out).
+  const ADDS_KEY = "recipes-adds";
+  const ADD_KEEP_MS = 24 * 3600000;
+  const adds = {
+    list: (() => {
+      try {
+        const v = JSON.parse(localStorage.getItem(ADDS_KEY) || "[]");
+        return Array.isArray(v) ? v.filter((x) => x && typeof x.code === "string" && Number.isInteger(x.n) && typeof x.at === "number") : [];
+      } catch (_) { return []; }
+    })(),
+    save() { try { localStorage.setItem(ADDS_KEY, JSON.stringify(this.list)); } catch (_) {} },
+    add(code, n) { this.list.push({ code, n, at: Date.now() }); this.save(); watchPending(); },
+    find(code) { return code ? this.list.find((x) => x.code === code) : null; },
+    prune() {
+      const keep = this.list.filter((x) => Date.now() - x.at < ADD_KEEP_MS);
+      if (keep.length !== this.list.length) { this.list = keep; this.save(); }
+    },
+    // Something sent in the last 30 minutes: worth checking recipes.json every 20 s.
+    recent() { return this.list.some((x) => Date.now() - x.at < PENDING_MS); },
+  };
+  // Called whenever recipes.json changed: a sent link whose recipe is now in the library has arrived.
+  function checkAdds() {
+    const arrived = adds.list.filter((x) => x.code && byId.has(x.code));
+    if (!arrived.length) return;
+    adds.list = adds.list.filter((x) => !arrived.includes(x));
+    adds.save();
+    toast(arrived.length === 1 ? "Added: " + byId.get(arrived[0].code).name : plural(arrived.length, "new recipe") + " added");
+  }
+
+  // The "Add a recipe" sheet. addDup holds the code of a recipe already in the library.
+  let addDraft = "", addErr = "", addDup = "";
+  function openAddSheet() {
+    addErr = "";
+    addDup = "";
+    adds.prune();
+    openSheet({ title: "Add a recipe", body: addBody, foot: addFoot });
+    const el = $("#addIn");
+    if (el && !matchMedia("(pointer: coarse)").matches) el.focus();
+  }
+  function addBody() {
+    const dup = addDup && byId.get(addDup);
+    const issue = (n) => '<a href="https://github.com/' + esc(REPO) + "/issues/" + n + '" target="_blank" rel="noopener">#' + n + "</a>";
+    return '<p class="sum-intro">Paste an Instagram post or reel link. The bot reads the recipe and adds it here, ' +
+        "usually within a few minutes.</p>" +
+      '<label class="ed-field tok"><span>Instagram link</span><input class="ed-in" id="addIn" type="url" inputmode="url" ' +
+        'autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" ' +
+        'placeholder="https://www.instagram.com/reel/..." value="' + esc(addDraft) + '"></label>' +
+      (navigator.clipboard && navigator.clipboard.readText
+        ? '<div class="set-btns"><button class="btn ghost" type="button" data-act="addPaste">Paste</button></div>' : "") +
+      (dup ? '<div class="note-pending" role="status">Already in your recipes: <a href="#/r/' + encodeURIComponent(dup._id) + '">' +
+        esc(dup.name) + "</a></div>" : "") +
+      (addErr ? '<div class="note-review" role="alert">' + esc(addErr) + "</div>" : "") +
+      (adds.list.length ? '<section class="fgroup"><h3>Waiting for the bot</h3><ul class="add-wait">' +
+        adds.list.map((x) => "<li>" + esc(x.code || "Shared link") + " (" + issue(x.n) + ")</li>").join("") +
+        "</ul></section>" : "");
+  }
+  const addFoot = () => '<button class="btn ghost" type="button" data-act="closeSheet">Cancel</button>' +
+    '<button class="btn" type="button" data-act="addSend"' + (sending ? " disabled" : "") + ">" + (sending ? "Sending..." : "Send") + "</button>";
+
+  // Checks the pasted text; returns the link to send, or null after setting why not.
+  function addCheck() {
+    addErr = "";
+    addDup = "";
+    if (!addDraft.trim()) { addErr = "Paste a link first."; return null; }
+    const p = parseIg(addDraft);
+    if (!p) { addErr = "That isn't an Instagram post or reel link."; return null; }
+    if (p.code && byId.has(p.code)) { addDup = p.code; return null; }
+    const w = adds.find(p.code);
+    if (w) { addErr = "This link was already sent (#" + w.n + ") and is waiting for the bot."; return null; }
+    return p;
+  }
+  async function sendAdd(p) {
+    if (sending) return;
+    const body = p.url + "\n\nAdded from the website.";
+    const sent = await postIssue("Recipe: " + (p.code || "shared link"), body, ["recipe", "queued"], () => sendAdd(p));
+    if (!sent) return;
+    adds.add(p.code, sent.number);
+    addDraft = "";
+    closeSheet(true);
+    toast("Sent as #" + sent.number + ". The bot usually adds it within a few minutes.");
   }
 
   const VIEWS = { "": viewHome, browse: viewBrowse, saved: viewSaved, list: viewList, r: viewRecipe };
@@ -2251,6 +2365,23 @@
       if (!row) return;
       row.innerHTML = spotlight().map((r) => card(r)).join("");
       row.scrollLeft = 0;
+    },
+    // Adding a recipe.
+    addOpen() { openAddSheet(); },
+    async addPaste() {
+      try {
+        const t = await navigator.clipboard.readText();
+        if (!t) { toast("The clipboard is empty"); return; }
+        addDraft = t.trim();
+        addCheck();
+        renderSheet();
+      } catch (_) { toast("Could not read the clipboard. Long-press the box and paste."); }
+    },
+    addSend() {
+      if (sending) return;
+      const p = addCheck();
+      if (!p) { renderSheet(); return; }
+      withToken(() => sendAdd(p));
     },
     // Settings.
     openSettings() { openSheet({ title: "Settings", body: settingsBody }); },
