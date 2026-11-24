@@ -1,5 +1,41 @@
 [
   {
+    "name": "Creamy Tuscan Pasta",
+    "cuisine": "Italian",
+    "type": "Main",
+    "time": "17 min",
+    "ingredients": [
+      "10.5 oz spaghetti ((300g))",
+      "Salt (for the pasta water)",
+      "1 tbsp vegetable oil",
+      "3 cloves garlic (finely chopped)",
+      "2.5 oz jarred sun-dried tomatoes (roughly chopped (75g))",
+      "1 tbsp tomato paste",
+      "1 tsp paprika",
+      "1 1/4 cups light cream (or single cream (300 ml))",
+      "1 1/4 cups chicken broth ((300ml))",
+      "1/2 tsp balsamic vinegar",
+      "6 oz fresh spinach ((180g))",
+      "1 oz parmesan (finely grated (30g))",
+      "Black pepper (to taste)",
+      "Parmesan (finely grated, to serve)"
+    ],
+    "steps": [
+      "Bring a large pot of salted water to a boil, add the spaghetti and cook according to the package instructions, then drain.",
+      "Meanwhile, heat 1 tbsp vegetable oil in a large, deep skillet. Once hot, add the garlic and sun-dried tomatoes and fry for 2 minutes.",
+      "Add the tomato paste and paprika and fry for a further 2 minutes, until fragrant.",
+      "Add the light cream, chicken broth and balsamic vinegar. Bring to a boil, then reduce to a simmer. Season with black pepper only, no salt.",
+      "Add the spinach and stir until wilted. Add the grated parmesan and stir to combine.",
+      "Add the drained spaghetti to the sauce and toss until every strand is coated. Taste and season with more black pepper, adding a pinch of salt only if needed. The sauce should be really saucy, add a splash more chicken stock to loosen if need be!",
+      "Divide between plates and top with more grated parmesan. Enjoy!"
+    ],
+    "url": "https://www.instagram.com/p/DgIfqVjK3M4/",
+    "author": "myriadrecipes",
+    "source": "https://myriadrecipes.com/creamy-tuscan-pasta-quick-recipe/",
+    "needs_review": false,
+    "added": "2026-11-24"
+  },
+  {
     "name": "Creamy Sausage and Broccoli Rigatoni",
     "cuisine": "Italian",
     "type": "Main",
