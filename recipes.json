@@ -1,5 +1,32 @@
 [
   {
+    "name": "Taiwanese Braised Pork Rice",
+    "cuisine": "Asian",
+    "type": "Main",
+    "time": "45 min",
+    "ingredients": [
+      "~200 g pork belly, cubed",
+      "~1/2 yellow onion, chopped",
+      "~2 tbsp soy sauce",
+      "~1 tbsp dark soy sauce",
+      "~1/2 cup water",
+      "~1 cup cooked rice",
+      "1 fried egg"
+    ],
+    "steps": [
+      "Sear cubed pork belly in a pot over medium heat until browned.",
+      "Add chopped onion and cook until softened.",
+      "Pour in soy sauce, dark soy sauce, and water.",
+      "Cover with a lid and simmer until sauce reduces and becomes glossy.",
+      "Serve braised pork over cooked rice and top with a fried egg."
+    ],
+    "url": "https://www.instagram.com/p/DdwE0eXzzUk/",
+    "author": "itsremycooks",
+    "source": "",
+    "needs_review": false,
+    "added": "2026-11-25"
+  },
+  {
     "name": "Garlic Butter Noodles",
     "cuisine": "Fusion",
     "type": "Main",
