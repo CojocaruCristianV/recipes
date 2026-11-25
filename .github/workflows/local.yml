@@ -70,8 +70,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Publishes the site only. Cannot push to the repo or touch issues.
+    # actions: read lets the wait step list this run's artifacts.
     permissions:
       contents: read
+      actions: read
       pages: write
       id-token: write
     concurrency:
@@ -90,8 +92,26 @@ jobs:
       - run: |
           mkdir -p _site
           cp index.html recipes.json _site/
+      # Artifacts are shared by all attempts of a run, so a re-run would add a second
+      # "github-pages" artifact and deploy-pages would refuse. Name it per attempt.
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
+          name: github-pages-${{ github.run_attempt }}
+      # The artifact list can lag behind the upload, which makes deploy-pages report
+      # "No artifacts named ... were found". Wait until it is listed.
+      - name: Wait for artifact to be listed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: github-pages-${{ github.run_attempt }}
+        run: |
+          for i in $(seq 1 12); do
+            n=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$NAME" --jq .total_count || true)
+            if [ "${n:-0}" -ge 1 ]; then echo "Artifact $NAME is listed"; exit 0; fi
+            echo "Artifact not listed yet ($i/12)"; sleep 5
+          done
+          echo "::warning::Artifact $NAME still not listed after 60s; deploying anyway"
       - id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}

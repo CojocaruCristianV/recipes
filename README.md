@@ -216,7 +216,7 @@ On a phone the tabs sit at the bottom; on a wide screen they move to a bar at th
 - Tap an ingredient to tick it; **Untick all** clears the ticks. Tap a step to highlight where you are. Ticks are kept until you clear them, even after closing the app.
 - Amounts starting with `~` are estimates (usually read from a video) and are shown in grey. `TBD:` marks a missing detail and is highlighted; recipes with gaps also get a *Review* tag.
 - **Save**, **Share** (the iOS share sheet; on a computer the link is copied) and **Instagram** (opens the original post).
-- **Edit** and **Re-read from video**: see below.
+- **Edit** and **Re-read from video** are behind the **More** (⋯) button at the end of the action row, so they are not tapped by mistake. See below.
 - Each recipe has its own link (`…/recipes/#/r/<code>`), so a shared link opens straight on that recipe.
 - You come back to the same scroll position and tab when you return to a page.
 
@@ -250,7 +250,7 @@ Send creates a `recipe` + `queued` issue, the same as the Shortcut, so the bot s
 
 ### Editing a recipe
 
-Tap **Edit** on a recipe page.
+On a recipe page tap **More** (⋯), then **Edit recipe**.
 
 - Every ingredient and step becomes a text box. Use the arrows to move a line up or down, the bin to delete it, and **Add ingredient** / **Add step** for a new line.
   - Return in a box splits the line at the cursor.
@@ -282,7 +282,7 @@ The site checks the token once with GitHub and saves it **on this device only**.
 
 ### Re-read from video
 
-**Re-read from video** on a recipe page asks the bot to read the post again: the caption and the video (or images) together, asking for the *complete* ingredient and step lists.
+**More** (⋯) → **Re-read from video** on a recipe page asks the bot to read the post again: the caption and the video (or images) together, asking for the *complete* ingredient and step lists.
 
 - The caption's wording is kept where the caption covers an item. Details seen only in the video are added as `~` estimates, and gaps are marked `TBD:`.
 - **Only the ingredients and steps are replaced.** Name, cuisine, type, time and date stay.

@@ -356,6 +356,15 @@
   .act-btn[aria-pressed="true"] .when-on { display: inline; }
   .act-btn.pop .ic { animation: pop .32s ease; }
   .wake { display: inline-flex; align-items: center; gap: 10px; min-height: 40px; margin-left: auto; font-size: 15px; font-weight: 500; cursor: pointer; }
+  .act-btn.more { width: 40px; padding: 0; justify-content: center; }
+  .more-list { display: grid; gap: 10px; padding: 4px 0 8px; }
+  .more-item {
+    display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px 14px; border-radius: var(--radius-s);
+    background: var(--chip); color: var(--text); text-align: left;
+  }
+  .more-item .ic { flex: none; width: 22px; height: 22px; margin-top: 1px; }
+  .more-item b { display: block; font-size: 16px; font-weight: 600; }
+  .more-item span { display: block; margin-top: 2px; color: var(--muted); font-size: 14px; }
   .note-review { margin: 14px 0 0; padding: 10px 14px; border-radius: var(--radius-s); background: var(--warn-soft); color: var(--warn); font-size: 15px; }
   .seg { display: flex; gap: 4px; margin: 22px 0 14px; padding: 4px; border-radius: 14px; background: var(--chip); }
   .seg button { flex: 1; height: 38px; border-radius: 10px; font-size: 15px; font-weight: 600; color: var(--muted); }
@@ -615,6 +624,7 @@
     down: '<path d="m6.5 9.5 5.5 5.5 5.5-5.5"/>',
     trash: '<path d="M4.5 7h15M10 11v6M14 11v6"/><path d="M6.5 7l1 12a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5l1-12"/><path d="M9.5 7V4.5h5V7"/>',
     reread: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
+    more: '<circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/>',
   });
   const icon = (name, cls, sw) => '<svg class="ic' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
     'stroke-width="' + (sw || 2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
@@ -1527,10 +1537,10 @@
           icon("heart") + '<span class="when-off">Save</span><span class="when-on">Saved</span></button>' +
         '<button class="act-btn" type="button" data-act="share">' + icon("share") + "Share</button>" +
         (igOk ? '<a class="act-btn" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + icon("insta") + "Instagram</a>" : "") +
-        '<button class="act-btn" type="button" data-act="editStart">' + icon("edit") + "Edit</button>" +
-        (igOk ? '<button class="act-btn" type="button" data-act="reread">' + icon("reread") + "Re-read from video</button>" : "") +
         (wake.supported ? '<label class="wake"><span>Keep screen on</span><span class="switch">' +
           '<input type="checkbox" role="switch" id="wakeSw"' + (wake.on ? " checked" : "") + '><span class="track"></span></span></label>' : "") +
+        // Edit and Re-read sit behind this button so they are not tapped by mistake.
+        '<button class="act-btn more" type="button" data-act="moreOpen" aria-haspopup="dialog" aria-label="More actions">' + icon("more") + "</button>" +
       "</div>" +
       pendingNote(r) +
       (r.needs_review ? '<div class="note-review">This recipe needs review: some amounts or steps may be missing. Gaps are marked TBD.</div>' : "") +
@@ -2394,8 +2404,25 @@
       renderSheet();
       toast("Token removed from this device");
     },
+    // "More" sheet on a recipe page: Edit and Re-read from video, kept out of the main row.
+    moreOpen() {
+      const r = byId.get(current.arg);
+      if (!r) return;
+      const igOk = /^https:\/\//i.test(r.url);
+      const item = (act, ic, title, note) => '<button class="more-item" type="button" data-act="' + act + '">' + icon(ic) +
+        "<div><b>" + title + "</b><span>" + note + "</span></div></button>";
+      openSheet({
+        title: "More",
+        body: () => '<div class="more-list">' +
+          item("editStart", "edit", "Edit recipe", "Change the name, cuisine, type, time, ingredients or steps.") +
+          (igOk ? item("reread", "reread", "Re-read from video",
+            "Read the post again and replace the ingredients and steps. Asks before sending.") : "") +
+          "</div>",
+      });
+    },
     // Editing.
     editStart() {
+      closeSheet(true);
       const r = byId.get(current.arg);
       if (!r) return;
       if (edit && edit.id === r._id) { render(); return; }
@@ -2450,6 +2477,7 @@
     },
     editSend() { withToken(sendEdit); },
     reread() {
+      closeSheet(true);
       const r = byId.get(current.arg);
       if (!r) return;
       if (!confirm("Re-read the ingredients and steps from the video?\n\nThis replaces both lists, including any changes you " +
