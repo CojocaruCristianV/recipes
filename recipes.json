@@ -1,5 +1,43 @@
 [
   {
+    "name": "Homemade Chili Oil",
+    "cuisine": "Asian",
+    "type": "Condiment",
+    "time": "20 min",
+    "ingredients": [
+      "~1 cup oil",
+      "~1/2 cup finely chopped shallots",
+      "~1/2 cup minced garlic",
+      "~1 star anise",
+      "~1 bay leaf",
+      "~1 cinnamon stick",
+      "~1 green chili",
+      "~2 tbsp chili flakes",
+      "~1 tbsp chili powder",
+      "~1 tsp white pepper powder",
+      "~1 tbsp brown sugar",
+      "~1 tbsp sesame seeds",
+      "~1 tbsp soy sauce",
+      "~1/2 tsp salt"
+    ],
+    "steps": [
+      "Add cold oil, shallots, garlic, star anise, bay leaf, cinnamon stick, and green chili to a pan.",
+      "Fry over medium heat until the onion and garlic are golden and crispy.",
+      "Remove and discard the whole spices (star anise, bay leaf, cinnamon, green chili).",
+      "Strain the oil, setting aside the crispy fried onion and garlic.",
+      "Heat the strained oil until piping hot.",
+      "In a heatproof bowl, combine chili flakes, chili powder, white pepper powder, brown sugar, and sesame seeds.",
+      "Pour the hot oil over the spice mixture in the bowl.",
+      "Stir in soy sauce and salt.",
+      "Fold in the reserved crispy fried onion and garlic until well combined."
+    ],
+    "url": "https://www.instagram.com/p/DdqWVO6BpwA/",
+    "author": "thesecretspiceaffair",
+    "source": "",
+    "needs_review": false,
+    "added": "2026-11-26"
+  },
+  {
     "name": "Taiwanese Braised Pork Rice",
     "cuisine": "Asian",
     "type": "Main",
