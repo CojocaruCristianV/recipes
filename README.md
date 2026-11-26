@@ -52,6 +52,8 @@ config.toml     model, fetcher order, Apify actors, web lookup, limits
 index.html      the website (static, no dependencies)
 recipes.json    the data (starts as [])
 scripts/create-labels.ps1
+scripts/check-site.mjs       checks the index.html script and recipes.json before publishing
+scripts/check-shopping.mjs   examples for the combined shopping list (node scripts/check-shopping.mjs)
 ```
 
 ## Setup (one time, about 20 minutes)
@@ -216,13 +218,13 @@ On a phone the tabs sit at the bottom; on a wide screen they move to a bar at th
 - Tap an ingredient to tick it; **Untick all** clears the ticks. Tap a step to highlight where you are. Ticks are kept until you clear them, even after closing the app.
 - Amounts starting with `~` are estimates (usually read from a video) and are shown in grey. `TBD:` marks a missing detail and is highlighted; recipes with gaps also get a *Review* tag.
 - **Save**, **Share** (the iOS share sheet; on a computer the link is copied) and **Instagram** (opens the original post).
-- **Edit** and **Re-read from video** are behind the **More** (⋯) button at the end of the action row, so they are not tapped by mistake. See below.
+- **Keep screen on**, **Edit** and **Re-read from video** are behind the **More** (⋯) button in the top-right corner, next to Back, so they are not tapped by mistake. See below.
 - Each recipe has its own link (`…/recipes/#/r/<code>`), so a shared link opens straight on that recipe.
 - You come back to the same scroll position and tab when you return to a page.
 
 ### Keep screen on
 
-The **Keep screen on** switch on the recipe page stops the phone from dimming and locking while that recipe is open.
+The **Keep screen on** switch in the recipe page's **More** (⋯) menu stops the phone from dimming and locking while a recipe is open. While it is on, a small sun shows next to the More button; tapping it opens the same menu.
 
 - It only works on a recipe page and lets go as soon as you leave it.
 - The switch is remembered: once on, it is on for every recipe you open.
@@ -232,9 +234,17 @@ The **Keep screen on** switch on the recipe page stops the phone from dimming an
 ### Shopping list
 
 - On a recipe page, **Add all to list** adds every ingredient. After ticking what you already have, **Add unticked (n)** adds only the rest.
-- Items are grouped by recipe. Adding the same recipe again does not create duplicates; an item you had ticked off is unticked instead.
-- Tap an item to tick it off. **Clear checked** removes ticked items. The × next to a recipe removes its whole group.
-- **Copy / Share** sends the items still to buy as plain text: the share sheet on a phone (Notes, Messages, Reminders), the clipboard on a computer.
+- **Choose items** lets you pick any ingredients, ticked or not: tap the ones you want (they get a round mark, so they don't look like your ticks), then **Add selected (n)**. **Cancel**, or leaving the recipe, stops choosing. Your ticks never change.
+- The List tab has two views and remembers which one you used last:
+  - **By recipe**: items grouped by recipe. Adding the same recipe again does not create duplicates; an item you had ticked off is unticked instead. The × next to a recipe removes its whole group.
+  - **Combined**: one flat list, A-Z. The same ingredient from different recipes is one entry with the amounts added up (`Eggs — 5`). The recipes it comes from are shown under it in grey.
+- How Combined matches ingredients:
+  - Case, accents, plurals, preparation words (chopped, minced, fresh...), brackets and anything after a comma are ignored, so `1 tablespoon of parsley`, `1 cup chopped parsley` and `a bunch of parsley` are all **Parsley**. A few names that mean the same thing are merged too (spring onions, green onions and scallions; parmesan cheese and parmesan; pepper and black pepper).
+  - Volumes (tsp, tbsp, cup, ml, l) and weights (g, kg, oz, lb) are converted and added; volume and weight are never mixed. Counted units (cloves, bunches, pinches, cans...) are added per unit, and vague amounts (to taste, for serving) come last: `Parsley — 1 cup + 1 tbsp + 1 bunch`, `Salt — 2 pinches + to taste`.
+  - Ranges count the larger number (`4-5 carrots` is 5). If any part is an estimate (`~`), the total is shown with `~`.
+  - `salt and pepper` becomes two entries. Lines it cannot read, such as `TBD:` lines, are listed as they are.
+- Tap an item to tick it off. In Combined, ticking an entry ticks every line behind it. **Clear checked** removes ticked items.
+- **Copy / Share** sends the items still to buy, in the view on screen, as plain text: the share sheet on a phone (Notes, Messages, Reminders), the clipboard on a computer.
 
 ### Adding a recipe from the site
 

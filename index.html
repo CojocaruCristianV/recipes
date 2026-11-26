@@ -355,8 +355,13 @@
   .act-btn .when-on, .act-btn[aria-pressed="true"] .when-off { display: none; }
   .act-btn[aria-pressed="true"] .when-on { display: inline; }
   .act-btn.pop .ic { animation: pop .32s ease; }
-  .wake { display: inline-flex; align-items: center; gap: 10px; min-height: 40px; margin-left: auto; font-size: 15px; font-weight: 500; cursor: pointer; }
-  .act-btn.more { width: 40px; padding: 0; justify-content: center; }
+  /* Top bar of a recipe page: Back on the left, the More button (and the screen-on mark) on the right. */
+  .bar-right { display: flex; align-items: center; gap: 6px; }
+  .backbar .icon-btn.more { background: none; }
+  .backbar .icon-btn.more .ic { width: 26px; height: 26px; }
+  .backbar .wake-on { width: 34px; height: 34px; color: var(--accent); background: var(--accent-soft); }
+  .backbar .wake-on .ic { width: 18px; height: 18px; }
+  .more-switch { padding: 0 14px; border-radius: var(--radius-s); background: var(--chip); }
   .more-list { display: grid; gap: 10px; padding: 4px 0 8px; }
   .more-item {
     display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px 14px; border-radius: var(--radius-s);
@@ -400,6 +405,12 @@
     border: solid var(--on-accent); border-width: 0 2px 2px 0; transform: rotate(45deg);
   }
   .ing.on .txt { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+  /* Choosing items for the list: round boxes, so they are not mistaken for the "I have this" ticks. */
+  .ing.picking .box { border-radius: 50%; }
+  .ing.picking.on { background: var(--accent-soft); }
+  .ing.picking.on .txt { color: var(--text); text-decoration: none; }
+  .ing.picking.had:not(.on) .txt { color: var(--muted); }
+  .pick-note { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
   .step .num {
     flex: 0 0 28px; height: 28px; margin-top: -2px; border-radius: 14px; background: var(--chip);
     display: grid; place-items: center; font-size: 14px; font-weight: 700;
@@ -461,6 +472,12 @@
   .lgroup-head .icon-btn .ic { width: 18px; height: 18px; }
   .add-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
   .add-row .btn { flex: 1 1 auto; }
+  /* By recipe / Combined switch and the combined entries. */
+  .lview { display: flex; gap: 4px; max-width: 420px; margin: 0 0 16px; padding: 4px; border-radius: 14px; background: var(--chip); }
+  .lview button { flex: 1; height: 36px; border-radius: 10px; font-size: 15px; font-weight: 600; color: var(--muted); }
+  .lview button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+  .cname { font-weight: 600; }
+  .csrc { display: block; margin-top: 2px; font-size: 12.5px; color: var(--faint); }
 
   /* ===== settings ===== */
   .set-btns { display: flex; flex-wrap: wrap; gap: 10px; padding: 4px 0 8px; }
@@ -625,6 +642,7 @@
     trash: '<path d="M4.5 7h15M10 11v6M14 11v6"/><path d="M6.5 7l1 12a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5l1-12"/><path d="M9.5 7V4.5h5V7"/>',
     reread: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
     more: '<circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/>',
+    awake: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   });
   const icon = (name, cls, sw) => '<svg class="ic' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
     'stroke-width="' + (sw || 2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
@@ -906,6 +924,297 @@
   };
   // Ingredients of r not ticked on its recipe page (ticks for removed lines are ignored).
   const untickedCount = (r, t) => r.ingredients.length - t.i.filter((i) => i < r.ingredients.length).length;
+  // Shopping list view: "recipe" (grouped by recipe) or "combined" (one flat list, same ingredients added up).
+  let listView = store.get("listView", "recipe") === "combined" ? "combined" : "recipe";
+  // Choosing ingredients to add on a recipe page: { id: <code>, sel: [indexes] }. Kept in memory only,
+  // separate from the ticks; leaving the recipe ends it.
+  let pick = null;
+
+  /* ---- shopping list: combined view (start) ---- */
+  // Reads ingredient lines ("1 1/4 cups light cream", "Salt, to taste", "juice of 1 lemon") into a base
+  // ingredient plus an amount, so the same ingredient from several recipes becomes one entry.
+  // Volumes and weights are converted and added; counted units (cloves, bunches, pinches...) are
+  // added per unit; vague amounts ("to taste") are listed after them. Lines that cannot be read
+  // are kept as they are. This block only uses fold(), so scripts/check-shopping.mjs can test it.
+  const SHOP = (() => {
+    const VULGAR = {
+      "\u00bc": 1 / 4, "\u00bd": 1 / 2, "\u00be": 3 / 4, "\u2150": 1 / 7, "\u2151": 1 / 9, "\u2152": 1 / 10,
+      "\u2153": 1 / 3, "\u2154": 2 / 3, "\u2155": 1 / 5, "\u2156": 2 / 5, "\u2157": 3 / 5, "\u2158": 4 / 5,
+      "\u2159": 1 / 6, "\u215a": 5 / 6, "\u215b": 1 / 8, "\u215c": 3 / 8, "\u215d": 5 / 8, "\u215e": 7 / 8,
+    };
+    const VCH = "\u00bc-\u00be\u2150-\u215e";
+    // 1 1/4, 1/2, 1.5, 1,5, 1 1/2 written with a fraction character, or the fraction character alone.
+    const NUM = "(?:\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d+(?:[.,]\\d+)?(?:\\s*[" + VCH + "])?|[" + VCH + "])";
+    const QTY_RE = new RegExp("^(" + NUM + ")(?:\\s*(?:-|\\u2013|to)\\s*(" + NUM + "))?\\s*");
+    const WORDNUM = {
+      "a couple of": 2, "a couple": 2, "couple of": 2, "half a": 0.5, "half an": 0.5, "a half": 0.5, a: 1, an: 1,
+      one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, half: 0.5,
+    };
+    const WORDNUM_RE = /^(a couple of|a couple|couple of|half an?|a half|an?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|half)\s+/;
+
+    // alias -> { unit, kind: "vol" (ml) | "wt" (g) | "n" (counted), f: factor to ml or g, us / imp: unit system, pl: plural }
+    const UNITS = {};
+    const unit = (name, kind, f, aliases, extra) => {
+      const u = Object.assign({ unit: name, kind, f, pl: name }, extra || {});
+      aliases.split(" ").forEach((a) => { UNITS[a] = u; });
+    };
+    // US volumes are exact multiples of the teaspoon (1 tbsp = 3 tsp, 1 cup = 48 tsp), so sums stay exact.
+    const TSP = 4.92892;
+    unit("tsp", "vol", TSP, "tsp tsps teaspoon teaspoons", { us: true });
+    unit("tbsp", "vol", TSP * 3, "tbsp tbsps tbs tbl tablespoon tablespoons", { us: true });
+    unit("cup", "vol", TSP * 48, "cup cups", { us: true });
+    unit("fl oz", "vol", 29.5735, "floz");
+    unit("ml", "vol", 1, "ml mls milliliter milliliters millilitre millilitres");
+    unit("cl", "vol", 10, "cl");
+    unit("dl", "vol", 100, "dl");
+    unit("l", "vol", 1000, "l liter liters litre litres");
+    unit("g", "wt", 1, "g gr gram grams gramme grammes");
+    unit("kg", "wt", 1000, "kg kgs kilo kilos kilogram kilograms");
+    unit("mg", "wt", 0.001, "mg");
+    unit("oz", "wt", 28.3495, "oz ounce ounces", { imp: true });
+    unit("lb", "wt", 453.592, "lb lbs pound pounds", { imp: true });
+    [
+      "clove cloves", "can cans tin tins", "bottle bottles", "bunch bunches", "handful handfuls", "pinch pinches",
+      "sprig sprigs", "slice slices", "head heads", "drizzle drizzles", "dash dashes", "stick sticks", "sheet sheets",
+      "jar jars", "pack packs packet packets package packages", "piece pieces", "stalk stalks", "knob knobs",
+      "splash splashes", "sprinkle sprinkles", "cube cubes", "fillet fillets", "glug glugs", "scoop scoops",
+    ].forEach((s) => { const w = s.split(" "); unit(w[0], "n", 1, s, { pl: w[1] }); });
+    // Units that can also come after the name: "3 garlic cloves".
+    const TAIL_UNITS = new Set(["clove", "cloves", "stalk", "stalks", "sprig", "sprigs"]);
+    // "juice of 1 lemon" counts lemons.
+    const FRUIT = { lemon: "lemons", lime: "limes", orange: "oranges" };
+
+    // Vague amounts, kept as notes. A null label keeps the matched words ("for serving").
+    const VAGUE = [
+      [/\bto taste\b/g, "to taste"],
+      [/\bas (?:needed|required)\b/g, "as needed"],
+      [/\boptional(?:ly)?\b/g, "optional"],
+      [/\b(?:a )?generous amount\b/g, "generous amount"],
+      [/\ba (?:little|bit|few)\b(?: of\b)?/g, null],
+      [/\b(?:for|to) (?:serv|garnish|decorat|dust|fry|boil|greas|brush|drizzl|top|finish|sprinkl|coat)[a-z]*\b/g, null],
+    ];
+    // Preparation and size words, dropped from the name: "finely chopped fresh parsley" is parsley.
+    const DROP = new Set(("chopped finely roughly coarsely freshly fresh minced diced sliced grated shredded crushed ground " +
+      "peeled deseeded seeded halved quartered cubed softened melted beaten sifted drained rinsed large small medium big " +
+      "whole organic thinly thickly lightly packed heaping heaped level generous about approx approximately good quality " +
+      "very torn trimmed pitted zested juiced smashed some fried boiled poached scrambled toasted roasted").split(" "));
+    const WORDMAP = { chilli: "chili", chile: "chili", chillies: "chilis", chiles: "chilis", chilies: "chilis", yoghurt: "yogurt" };
+    // Different names for the same thing, compared after the last word is made singular.
+    const SYN = {
+      "green onion": "spring onion", scallion: "spring onion",
+      "parmesan cheese": "parmesan", parmigiano: "parmesan", "parmigiano reggiano": "parmesan", "parmigiano reggiano cheese": "parmesan",
+      pepper: "black pepper",
+      "sea salt": "salt", "kosher salt": "salt", "fine salt": "salt", "fine sea salt": "salt", "table salt": "salt",
+      "flaky salt": "salt", "flaky sea salt": "salt", "coarse salt": "salt",
+      "extra virgin olive oil": "olive oil", "virgin olive oil": "olive oil", evoo: "olive oil",
+      dijon: "dijon mustard", worcestershire: "worcestershire sauce",
+      "plain flour": "all purpose flour", "ap flour": "all purpose flour", flour: "all purpose flour",
+      "white sugar": "sugar", "granulated sugar": "sugar", "superfine sugar": "caster sugar",
+      "hot water": "water", "warm water": "water", "cold water": "water", "boiling water": "water",
+      "lukewarm water": "water", "ice water": "water", "ice cold water": "water",
+    };
+    const KEEP_S = new Set("asparagus couscous hummus molasses swiss lemongrass citrus octopus hibiscus".split(" "));
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+    function singular(w) {
+      if (w.length < 4 || KEEP_S.has(w) || /(?:ss|us)$/.test(w)) return w;
+      if (/ies$/.test(w)) return w.slice(0, -3) + "y";
+      if (/(?:oes|ches|shes|xes)$/.test(w)) return w.slice(0, -2);
+      if (/s$/.test(w)) return w.slice(0, -1);
+      return w;
+    }
+
+    function toNum(s) {
+      const t = String(s).replace(/\s+/g, " ").trim().replace(",", ".");
+      let m;
+      if ((m = t.match(/^(\d+) (\d+)\/(\d+)$/))) return +m[3] ? +m[1] + m[2] / m[3] : null;
+      if ((m = t.match(/^(\d+)\/(\d+)$/))) return +m[2] ? m[1] / m[2] : null;
+      if ((m = t.match(new RegExp("^(\\d+(?:\\.\\d+)?)? ?([" + VCH + "])?$"))) && (m[1] || m[2])) {
+        return (m[1] ? +m[1] : 0) + (m[2] ? VULGAR[m[2]] : 0);
+      }
+      return null;
+    }
+
+    // Amount at the start: { qty, rest }. Ranges count the larger number, so there is enough.
+    function readQty(s) {
+      let m = s.match(QTY_RE);
+      if (m) {
+        const a = toNum(m[1]), b = m[2] ? toNum(m[2]) : null;
+        if (a != null) return { qty: b != null ? Math.max(a, b) : a, rest: s.slice(m[0].length) };
+      }
+      m = s.match(WORDNUM_RE);
+      if (m) return { qty: WORDNUM[m[1]], rest: s.slice(m[0].length) };
+      return { qty: null, rest: s };
+    }
+
+    // Unit after the amount, with an optional size word before it ("large pinch") and "of" after it.
+    // Without an amount only counted units followed by "of" count ("handful of parsley" = 1 handful).
+    const UNIT_RE = /^(?:(?:large|small|medium|big|generous|heaping|heaped|level|scant|good|whole|rounded)\s+)?([a-z]+)\.?(?![\p{L}])\s*(?:of\s+)?/u;
+    function readUnit(s, hadQty) {
+      const m = s.match(UNIT_RE);
+      const u = m && UNITS[m[1]];
+      if (!u) return { u: null, rest: s };
+      if (!hadQty && (u.kind !== "n" || !/\bof\s*$/.test(m[0]))) return { u: null, rest: s };
+      return { u, rest: s.slice(m[0].length) };
+    }
+
+    // Base name: { key (for matching), name (for display), u (a unit found after the name) } or null.
+    function cleanName(s, u) {
+      let w = s.replace(/[^\p{L}\p{N}\s']/gu, " ").replace(/\s+for\s.*$/, "").split(/\s+/).filter(Boolean);
+      while (w.length && (w[0] === "of" || w[0] === "the")) w.shift();
+      w = w.filter((x) => !DROP.has(fold(x)));
+      while (w.length && /^(?:of|and|or|the)$/.test(w[w.length - 1])) w.pop();
+      if (!u && w.length > 1 && TAIL_UNITS.has(fold(w[w.length - 1]))) u = UNITS[fold(w.pop())];
+      if (!w.length || w.every((x) => /^\d/.test(x))) return null;
+      const kw = w.map((x) => { const f = fold(x); return WORDMAP[f] || f; });
+      kw[kw.length - 1] = singular(kw[kw.length - 1]);
+      const key = kw.join(" ");
+      const syn = SYN[key];
+      return { key: syn || key, name: cap(syn || w.join(" ")), u };
+    }
+
+    // One ingredient line -> a list of parts (usually one; "salt and pepper" gives two):
+    // { key, name, qty (number or null), u (unit or null), est (amount starts with ~), notes, raw }.
+    function parseLine(line) {
+      const orig = String(line == null ? "" : line).replace(/\s+/g, " ").trim();
+      const raw = [{ key: "=" + fold(orig), name: orig, qty: null, u: null, est: false, notes: [], raw: true }];
+      if (!orig || /\btbd\b/i.test(orig)) return raw;
+      const est = /^~/.test(orig);
+      let t = orig.normalize("NFC").toLowerCase().replace(/[~*]/g, "").replace(/\bfl\.?\s*oz\b/g, "floz");
+      const notes = [];
+      VAGUE.forEach(([re, label]) => {
+        t = t.replace(re, (m) => {
+          const n = label || m.replace(/\s+of$/, "").trim();
+          if (!notes.includes(n)) notes.push(n);
+          return " ";
+        });
+      });
+      for (let p = ""; p !== t;) { p = t; t = t.replace(/\([^()]*\)|\[[^[\]]*\]/g, " "); }
+      t = t.replace(/[()[\]]/g, " ");
+      // What follows a comma is preparation ("garlic, minced"); "or ..." is an alternative.
+      let head = t.split(/[,;]/)[0].split(/\s+or\s+/)[0].replace(/\s+plus\s.*$/, "").replace(/\s+/g, " ").trim();
+      const jz = head.match(/^(juice|zest) of (.+)$/);
+      if (jz) {
+        const q = readQty(jz[2]);
+        const fr = q.rest.match(/^(lemon|lime|orange)s?\b/);
+        if (fr) {
+          const nm = fr[1] + " " + jz[1];
+          return [{ key: nm, name: cap(nm), qty: q.qty == null ? 1 : q.qty, u: { unit: fr[1], kind: "n", f: 1, pl: FRUIT[fr[1]] }, est, notes }];
+        }
+      }
+      const q = readQty(head);
+      const un = readUnit(q.rest, q.qty != null);
+      const qty = q.qty == null && un.u ? 1 : q.qty;
+      head = un.rest.trim();
+      const names = qty == null && /\s(?:and|&)\s/.test(head) ? head.split(/\s(?:and|&)\s/) : [head];
+      const out = [];
+      names.forEach((n) => {
+        const c = cleanName(n, un.u);
+        if (c) out.push({ key: c.key, name: c.name, qty, u: c.u, est, notes });
+      });
+      return out.length ? out : raw;
+    }
+
+    // 1.25 -> "1 1/4", 0.333 -> "1/3"; other values get up to two decimals.
+    const FR = [[0, ""], [1 / 8, "1/8"], [1 / 4, "1/4"], [1 / 3, "1/3"], [3 / 8, "3/8"], [1 / 2, "1/2"],
+      [5 / 8, "5/8"], [2 / 3, "2/3"], [3 / 4, "3/4"], [7 / 8, "7/8"], [1, ""]];
+    function fmtNum(x) {
+      let w = Math.floor(x + 1e-9);
+      const f = x - w;
+      const hit = FR.find(([v]) => Math.abs(f - v) < 0.02);
+      if (!hit) return String(Math.round(x * 100) / 100);
+      if (hit[0] === 1) w += 1;
+      return hit[1] ? (w ? w + " " + hit[1] : hit[1]) : String(w);
+    }
+    // US volume in cups, tablespoons and teaspoons: 51 tsp -> "1 cup + 1 tbsp".
+    function usVol(ml) {
+      let tsp = ml / TSP;
+      const parts = [];
+      if (tsp / 48 >= 0.25 - 1e-3) {
+        const c = tsp / 48;
+        const cups = Math.max(Math.floor(c * 4 + 1e-3) / 4, Math.floor(c * 3 + 1e-3) / 3);
+        parts.push(fmtNum(cups) + (cups > 1 ? " cups" : " cup"));
+        tsp = Math.max(0, tsp - cups * 48);
+      }
+      const tb = Math.floor(tsp / 3 + 1e-3);
+      if (tb > 0) { parts.push(tb + " tbsp"); tsp -= tb * 3; }
+      const ts = Math.round(tsp * 8) / 8;
+      if (ts > 0) parts.push(fmtNum(ts) + " tsp");
+      return parts.length ? parts.join(" + ") : "1/8 tsp";
+    }
+    function metric(v, small, big) {
+      if (v >= 1000) return Math.round(v / 10) / 100 + " " + big;
+      return (v < 10 ? Math.round(v * 10) / 10 : Math.round(v)) + " " + small;
+    }
+    function impWt(g) {
+      const oz = g / UNITS.oz.f;
+      return oz >= 16 ? fmtNum(Math.round(oz / 4) / 4) + " lb" : fmtNum(Math.round(oz * 4) / 4) + " oz";
+    }
+
+    // Adds up the parts of one entry.
+    function total(parts) {
+      const a = { vol: 0, volN: 0, volUS: true, volE: false, wt: 0, wtN: 0, wtImp: true, wtE: false,
+        cnt: 0, cntN: 0, cntE: false, units: new Map(), notes: [] };
+      parts.forEach((p) => {
+        p.notes.forEach((n) => { if (!a.notes.includes(n)) a.notes.push(n); });
+        if (p.qty == null) return;
+        const u = p.u;
+        if (!u) { a.cnt += p.qty; a.cntN++; a.cntE = a.cntE || p.est; }
+        else if (u.kind === "vol") { a.vol += p.qty * u.f; a.volN++; a.volUS = a.volUS && !!u.us; a.volE = a.volE || p.est; }
+        else if (u.kind === "wt") { a.wt += p.qty * u.f; a.wtN++; a.wtImp = a.wtImp && !!u.imp; a.wtE = a.wtE || p.est; }
+        else {
+          const x = a.units.get(u.unit) || { n: 0, e: false, u };
+          x.n += p.qty;
+          x.e = x.e || p.est;
+          a.units.set(u.unit, x);
+        }
+      });
+      return a;
+    }
+    // "1 cup + 1 tbsp + 1 bunch", "5", "~170 g", "1 pinch + to taste".
+    function amountText(a) {
+      const out = [], t = (e, s) => (e ? "~" : "") + s;
+      if (a.volN) out.push(t(a.volE, a.volUS ? usVol(a.vol) : metric(a.vol, "ml", "l")));
+      if (a.wtN) out.push(t(a.wtE, a.wtImp ? impWt(a.wt) : metric(a.wt, "g", "kg")));
+      if (a.cntN) out.push(t(a.cntE, fmtNum(a.cnt)));
+      a.units.forEach((x) => out.push(t(x.e, fmtNum(x.n) + " " + (x.n > 1 ? x.u.pl : x.u.unit))));
+      return out.concat(a.notes).join(" + ");
+    }
+
+    // Shopping list groups -> one flat list, sorted by name:
+    // [{ key, name, amount, text, refs: [[group, item]], done, sources: [recipe names] }].
+    // The amount counts the lines still to buy; an entry is done when all of its lines are ticked off.
+    function combine(groups) {
+      const map = new Map();
+      groups.forEach((g, gi) => g.items.forEach((it, ii) => {
+        parseLine(it.t).forEach((p) => {
+          let e = map.get(p.key);
+          if (!e) { e = { key: p.key, raw: !!p.raw, names: [], parts: [], refs: [], src: [] }; map.set(p.key, e); }
+          if (!e.names.includes(p.name)) e.names.push(p.name);
+          e.parts.push(Object.assign({ c: it.c }, p));
+          if (!e.refs.some((r) => r[0] === gi && r[1] === ii)) e.refs.push([gi, ii]);
+          const sn = g.name || "Recipe";
+          if (!e.src.includes(sn)) e.src.push(sn);
+        });
+      }));
+      return [...map.values()].map((e) => {
+        const open = e.parts.filter((p) => !p.c);
+        const done = !open.length;
+        const a = total(done ? e.parts : open);
+        const amount = e.raw ? "" : amountText(a);
+        let name = e.names[0];
+        if (!e.raw && e.names.length > 1 && a.cntN) {
+          // "Eggs - 5", but "Egg - 1".
+          const pl = e.names.find((n) => fold(n) !== e.key), sg = e.names.find((n) => fold(n) === e.key);
+          name = (a.cnt > 1 ? pl : sg) || name;
+        }
+        return { key: e.key, name, amount, text: name + (amount ? " \u2014 " + amount : ""), refs: e.refs, done, sources: e.src };
+      }).sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: "base" }));
+    }
+
+    return { parseLine, combine, fmtNum, usVol };
+  })();
+  /* ---- shopping list: combined view (end) ---- */
 
   // Recently opened recipes, newest first, for "Continue cooking" on Home.
   let recentIds = (() => { const v = store.get("recent", []); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; })();
@@ -1399,6 +1708,29 @@
       return head("Shopping list") + '<div class="state"><b>Your list is empty</b>Open a recipe and tap Add all to list.</div>';
     }
     const n = shop.open();
+    const sw = '<div class="lview" role="tablist" aria-label="List view">' +
+      '<button type="button" role="tab" data-act="listView" data-v="recipe" aria-selected="' + (listView === "recipe") + '">By recipe</button>' +
+      '<button type="button" role="tab" data-act="listView" data-v="combined" aria-selected="' + (listView === "combined") + '">Combined</button></div>';
+    const actions = '<div class="list-actions">' +
+        '<button class="btn ghost" type="button" data-act="shareList">' + icon("share") + "Copy / Share</button>" +
+        '<button class="btn ghost" type="button" data-act="clearChecked"' + (shop.anyChecked() ? "" : " disabled") + ">Clear checked</button>" +
+      "</div>";
+    if (listView === "combined") {
+      // One flat list: the same ingredient from several recipes is one entry with the amounts added up.
+      // Ticking an entry ticks every list line behind it.
+      const list = SHOP.combine(shop.groups);
+      const left = list.filter((e) => !e.done).length;
+      const rows = list.map((e) => {
+        const refs = e.refs.map((x) => x[0] + ":" + x[1]).join(",");
+        return '<li><button class="ing' + (e.done ? " on" : "") + '" type="button" role="checkbox" aria-checked="' + e.done +
+          '" data-act="tickComb" data-r="' + refs + '"><span class="box" aria-hidden="true"></span><span class="txt">' +
+          '<span class="cname">' + esc(e.name) + "</span>" + (e.amount ? " \u2014 " + esc(e.amount) : "") +
+          (shop.groups.length > 1 ? '<span class="csrc">' + esc(e.sources.join(", ")) + "</span>" : "") +
+          "</span></button></li>";
+      }).join("");
+      return head("Shopping list", esc(left ? plural(left, "item") + " to buy" : "All done")) + sw + actions +
+        '<ul class="ings">' + rows + "</ul>";
+    }
     const groups = shop.groups.map((g, gi) => {
       const name = esc(g.name || "Recipe");
       const title = byId.has(g.id) ? '<a class="gname" href="#/r/' + encodeURIComponent(g.id) + '">' + name + "</a>" : '<span class="gname">' + name + "</span>";
@@ -1409,11 +1741,7 @@
           '" data-i="' + ii + '"><span class="box" aria-hidden="true"></span><span class="txt">' + fmtItem(it.t) + "</span></button></li>").join("") +
         "</ul></section>";
     }).join("");
-    return head("Shopping list", esc(n ? plural(n, "item") + " to buy" : "All done")) +
-      '<div class="list-actions">' +
-        '<button class="btn ghost" type="button" data-act="shareList">' + icon("share") + "Copy / Share</button>" +
-        '<button class="btn ghost" type="button" data-act="clearChecked"' + (shop.anyChecked() ? "" : " disabled") + ">Clear checked</button>" +
-      "</div>" + groups;
+    return head("Shopping list", esc(n ? plural(n, "item") + " to buy" : "All done")) + sw + actions + groups;
   }
 
   /* ----- settings (backup) ----- */
@@ -1500,13 +1828,22 @@
 
   function viewRecipe(id) {
     const r = byId.get(id);
-    const bar = '<div class="backbar"><button class="back" type="button" data-act="back">' + icon("back") + "Back</button></div>";
+    const backBtn = '<button class="back" type="button" data-act="back">' + icon("back") + "Back</button>";
     if (!r) {
-      return bar + '<div class="state"><b>Recipe not found</b>It may have been removed or its link changed.' +
+      return '<div class="backbar">' + backBtn + "</div>" +
+        '<div class="state"><b>Recipe not found</b>It may have been removed or its link changed.' +
         '<br><a class="btn" href="#/">Go to Home</a></div>';
     }
     if (edit && edit.id === id) return viewEdit(r);
+    // Top bar: Back on the left; the More button (Keep screen on, Edit, Re-read) on the right. The small
+    // sun shows while Keep screen on is switched on, and opens the same menu.
+    const bar = '<div class="backbar">' + backBtn + '<div class="bar-right">' +
+      (wake.supported ? '<button class="icon-btn wake-on" id="wakeOn" type="button" data-act="moreOpen" aria-haspopup="dialog" ' +
+        'aria-label="Screen stays on. Open the menu to change it" title="Screen stays on"' + (wake.on ? "" : " hidden") + ">" + icon("awake") + "</button>" : "") +
+      '<button class="icon-btn more" type="button" data-act="moreOpen" aria-haspopup="dialog" aria-label="More actions">' + icon("more") + "</button>" +
+      "</div></div>";
     const t = ticks.get(id);
+    const picking = !!(pick && pick.id === id);
     const tab = rtabs[id] || "ing";
     const nI = r.ingredients.length, nS = r.steps.length;
     const facts = [
@@ -1514,11 +1851,26 @@
       [String(nI), nI === 1 ? "Ingredient" : "Ingredients"],
       [String(nS), nS === 1 ? "Step" : "Steps"],
     ].filter(Boolean);
+    // While choosing items for the list the rows select instead of tick; ticked ("have it") rows are greyed.
     const ings = r.ingredients.map((s, i) => {
+      if (picking) {
+        const sel = pick.sel.includes(i);
+        return '<li><button class="ing picking' + (sel ? " on" : "") + (t.i.includes(i) ? " had" : "") + '" type="button" role="checkbox" aria-checked="' + sel +
+          '" data-act="pickIng" data-i="' + i + '"><span class="box" aria-hidden="true"></span><span class="txt">' + fmtItem(s) + "</span></button></li>";
+      }
       const on = t.i.includes(i);
       return '<li><button class="ing' + (on ? " on" : "") + '" type="button" role="checkbox" aria-checked="' + on +
         '" data-act="tickIng" data-i="' + i + '"><span class="box" aria-hidden="true"></span><span class="txt">' + fmtItem(s) + "</span></button></li>";
     }).join("");
+    const addRow = picking
+      ? '<div class="add-row"><button class="btn" id="pickAdd" type="button" data-act="addList" data-m="picked"' + (pick.sel.length ? "" : " disabled") + ">" +
+          icon("plus") + 'Add selected (<span id="pickN">' + pick.sel.length + "</span>)</button>" +
+        '<button class="btn ghost" type="button" data-act="pickCancel">Cancel</button></div>'
+      : '<div class="add-row"><button class="btn ghost" type="button" data-act="addList" data-m="all">' + icon("plus") + "Add all to list</button>" +
+        '<button class="btn ghost" id="addUnticked" type="button" data-act="addList" data-m="unticked"' +
+          (untickedCount(r, t) > 0 && untickedCount(r, t) < nI ? "" : " hidden") + ">" + icon("plus") +
+          'Add unticked (<span id="untickedN">' + untickedCount(r, t) + "</span>)</button>" +
+        (nI > 1 ? '<button class="btn ghost" type="button" data-act="pickStart">' + icon("list") + "Choose items</button>" : "") + "</div>";
     const steps = r.steps.map((s, i) => {
       const on = t.s === i;
       return '<li><button class="step' + (on ? " on" : "") + '" type="button" aria-pressed="' + on + '" data-act="tickStep" data-i="' + i +
@@ -1537,10 +1889,6 @@
           icon("heart") + '<span class="when-off">Save</span><span class="when-on">Saved</span></button>' +
         '<button class="act-btn" type="button" data-act="share">' + icon("share") + "Share</button>" +
         (igOk ? '<a class="act-btn" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + icon("insta") + "Instagram</a>" : "") +
-        (wake.supported ? '<label class="wake"><span>Keep screen on</span><span class="switch">' +
-          '<input type="checkbox" role="switch" id="wakeSw"' + (wake.on ? " checked" : "") + '><span class="track"></span></span></label>' : "") +
-        // Edit and Re-read sit behind this button so they are not tapped by mistake.
-        '<button class="act-btn more" type="button" data-act="moreOpen" aria-haspopup="dialog" aria-label="More actions">' + icon("more") + "</button>" +
       "</div>" +
       pendingNote(r) +
       (r.needs_review ? '<div class="note-review">This recipe needs review: some amounts or steps may be missing. Gaps are marked TBD.</div>' : "") +
@@ -1550,12 +1898,9 @@
       "</div>" +
       '<div class="r-cols" data-tab="' + tab + '">' +
         '<section class="p-ing"><div class="panel-head"><h2>Ingredients</h2>' +
-          '<button class="link-btn" id="resetTicks" type="button" data-act="resetTicks"' + (t.i.length ? "" : " hidden") + ">Untick all</button></div>" +
-          '<ul class="ings">' + ings + "</ul>" +
-          '<div class="add-row"><button class="btn ghost" type="button" data-act="addList" data-m="all">' + icon("plus") + "Add all to list</button>" +
-          '<button class="btn ghost" id="addUnticked" type="button" data-act="addList" data-m="unticked"' +
-            (untickedCount(r, t) > 0 && untickedCount(r, t) < nI ? "" : " hidden") + ">" + icon("plus") +
-            'Add unticked (<span id="untickedN">' + untickedCount(r, t) + "</span>)</button></div></section>" +
+          '<button class="link-btn" id="resetTicks" type="button" data-act="resetTicks"' + (t.i.length && !picking ? "" : " hidden") + ">Untick all</button></div>" +
+          (picking ? '<p class="pick-note">Tap the ingredients to add to the shopping list. Your ticks stay as they are.</p>' : "") +
+          '<ul class="ings">' + ings + "</ul>" + addRow + "</section>" +
         '<section class="p-steps"><div class="panel-head"><h2>Steps</h2></div><ol class="steps">' + steps + "</ol></section>" +
       "</div>" +
       (r.added ? '<p class="added">Added ' + esc(r.added) + "</p>" : "") +
@@ -2169,6 +2514,7 @@
     }
     current = r.name in VIEWS ? r : { name: "", arg: "", key: "" };
     if (current.name === "r" && byId.has(current.arg)) noteRecent(current.arg);
+    if (pick && !(current.name === "r" && current.arg === pick.id)) pick = null; // leaving the recipe ends choosing
     render();
     window.scrollTo(0, scrolls[current.key] || 0);
     wake.sync(); // takes the screen lock on a recipe page, releases it everywhere else
@@ -2192,8 +2538,11 @@
     go("#/browse");
   }
 
-  // Shopping list as plain text, only the items still to buy.
+  // Shopping list as plain text, only the items still to buy, in the view that is on screen.
   function listText() {
+    if (listView === "combined") {
+      return SHOP.combine(shop.groups).filter((e) => !e.done).map((e) => "- " + e.text).join("\n");
+    }
     return shop.groups.map((g) => {
       const items = g.items.filter((it) => !it.c);
       return items.length ? (g.name || "Recipe") + "\n" + items.map((it) => "- " + it.t).join("\n") : "";
@@ -2328,10 +2677,49 @@
       const r = byId.get(current.arg);
       if (!r) return;
       const t = ticks.get(r._id);
-      const texts = el.dataset.m === "unticked" ? r.ingredients.filter((_, i) => !t.i.includes(i)) : r.ingredients;
+      const m = el.dataset.m;
+      let texts = r.ingredients;
+      if (m === "unticked") texts = r.ingredients.filter((_, i) => !t.i.includes(i));
+      else if (m === "picked") {
+        if (!pick || pick.id !== r._id || !pick.sel.length) return;
+        texts = r.ingredients.filter((_, i) => pick.sel.includes(i));
+      }
       const n = shop.add(r, texts);
-      renderTabs();
+      if (m === "picked") { pick = null; refresh(); } else renderTabs();
       toast(n ? "Added " + plural(n, "item") + " to the list" : "Already on the list");
+    },
+    // Choosing any ingredients (ticked or not) to add, without changing the ticks.
+    pickStart() {
+      const r = byId.get(current.arg);
+      if (!r) return;
+      pick = { id: r._id, sel: [] };
+      refresh();
+    },
+    pickCancel() { pick = null; refresh(); },
+    pickIng(el) {
+      if (!pick || pick.id !== current.arg) return;
+      const i = +el.dataset.i, k = pick.sel.indexOf(i);
+      if (k >= 0) pick.sel.splice(k, 1); else pick.sel.push(i);
+      el.classList.toggle("on", k < 0);
+      el.setAttribute("aria-checked", String(k < 0));
+      const b = $("#pickAdd"), c = $("#pickN");
+      if (b) b.disabled = !pick.sel.length;
+      if (c) c.textContent = String(pick.sel.length);
+    },
+    listView(el) {
+      listView = el.dataset.v === "combined" ? "combined" : "recipe";
+      store.set("listView", listView, true);
+      refresh();
+    },
+    // Combined entry: ticks (or unticks) every list line it was made from.
+    tickComb(el) {
+      const refs = String(el.dataset.r || "").split(",").map((s) => s.split(":").map(Number));
+      const items = refs.map(([g, i]) => shop.groups[g] && shop.groups[g].items[i]).filter(Boolean);
+      if (!items.length) return;
+      const to = !items.every((it) => it.c);
+      items.forEach((it) => { it.c = to; });
+      shop.save();
+      refresh();
     },
     tickList(el) {
       const g = shop.groups[+el.dataset.g];
@@ -2404,7 +2792,7 @@
       renderSheet();
       toast("Token removed from this device");
     },
-    // "More" sheet on a recipe page: Edit and Re-read from video, kept out of the main row.
+    // "More" sheet on a recipe page: Keep screen on, Edit and Re-read from video, kept out of the main row.
     moreOpen() {
       const r = byId.get(current.arg);
       if (!r) return;
@@ -2414,6 +2802,7 @@
       openSheet({
         title: "More",
         body: () => '<div class="more-list">' +
+          (wake.supported ? '<div class="more-switch">' + switchRow("wakeSw", "Keep screen on", wake.on, "while a recipe is open") + "</div>" : "") +
           item("editStart", "edit", "Edit recipe", "Change the name, cuisine, type, time, ingredients or steps.") +
           (igOk ? item("reread", "reread", "Re-read from video",
             "Read the post again and replace the ingredients and steps. Asks before sending.") : "") +
@@ -2518,6 +2907,8 @@
       wake.on = e.target.checked;
       store.set("keepAwake", wake.on, true);
       if (wake.on) wake.acquire(true); else wake.release();
+      const mark = $("#wakeOn");
+      if (mark) mark.hidden = !wake.on;
     } else if (id === "edReviewed") {
       if (edit) { edit.d.reviewed = e.target.checked; syncEditBar(); }
     } else if (id === "importFile") {
