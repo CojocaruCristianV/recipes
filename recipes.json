@@ -1,5 +1,42 @@
 [
   {
+    "name": "Cold Sesame Noodles",
+    "cuisine": "Asian",
+    "type": "Main",
+    "time": "20 min",
+    "ingredients": [
+      "250 g fresh Chinese wheat or egg noodles",
+      "1 tsp toasted sesame oil, for tossing",
+      "2 tbsp Chinese sesame paste",
+      "1 tbsp smooth peanut butter",
+      "2 tbsp light soy sauce",
+      "1 tbsp rice vinegar",
+      "1 tbsp toasted sesame oil",
+      "1½ tsp sugar",
+      "1 tsp freshly grated ginger",
+      "1 garlic clove, finely grated",
+      "1-2 tsp chili oil or chili-garlic paste, to taste",
+      "2-4 tbsp warm water, to thin",
+      "½ cucumber, julienned",
+      "2 scallions, thinly sliced",
+      "2 tbsp chopped roasted peanuts",
+      "Extra chili oil"
+    ],
+    "steps": [
+      "Julienne cucumber, slice scallions, and coarsely chop peanuts.",
+      "In a bowl, mix together Chinese sesame paste, peanut butter, light soy sauce, rice vinegar, toasted sesame oil, sugar, grated ginger, grated garlic, chili oil, and warm water until combined.",
+      "Boil fresh noodles in water until cooked, then drain.",
+      "Toss cooked noodles with sesame oil to prevent sticking.",
+      "Combine the noodles with the prepared sesame sauce and toss until well coated.",
+      "Plate noodles and top with julienned cucumber, sliced scallions, chopped peanuts, and an extra drizzle of chili oil."
+    ],
+    "url": "https://www.instagram.com/p/DgNpbbWMqJs/",
+    "author": "_hjcook",
+    "source": "",
+    "needs_review": false,
+    "added": "2026-11-27"
+  },
+  {
     "name": "Homemade Chili Oil",
     "cuisine": "Asian",
     "type": "Condiment",
