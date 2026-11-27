@@ -1,5 +1,47 @@
 [
   {
+    "name": "Thai Red Chicken Meatball Curry",
+    "cuisine": "Asian",
+    "type": "Main",
+    "time": "30 min",
+    "ingredients": [
+      "500 g chicken mince",
+      "2 garlic cloves, minced",
+      "2 tsp grated ginger",
+      "1/4 cup coriander, stems removed + chopped",
+      "2 spring onions, finely chopped",
+      "1 tbsp soy sauce",
+      "1 tsp fish sauce",
+      "2 tbsp breadcrumbs or panko",
+      "1 egg",
+      "1 shallot, chopped",
+      "1 tbsp olive oil",
+      "2–3 tbsp Thai red curry paste",
+      "1 × 400 ml can coconut milk",
+      "½ cup water",
+      "2 bunches broccolini or other green veg (e.g. green beans, broccoli or snow peas)",
+      "3 kefir lime leaves (optional)",
+      "Juice of ½ lime",
+      "Chilli oil",
+      "Jasmine rice",
+      "Fresh coriander or Thai basil",
+      "Extra lime wedges"
+    ],
+    "steps": [
+      "To make the meatballs, combine all the meatball ingredients to a mixing bowl and mix well. Roll into small meatballs (about golf-ball size).",
+      "Heat a drizzle of oil in a large pan over medium heat. Add the broccolini in and pan-fry until cooked through. Remove and set aside.",
+      "Add the meatballs and cook for 4–5 minutes, turning occasionally, until lightly golden. They don’t need to be fully cooked yet. Remove and set aside.",
+      "In the same pan, add a little more oil if needed. Cook the shallots for 2-3 minutes until translucent. Pour in the coconut milk and water, stirring to combine. Add lime leaves if you have. Bring to a gentle simmer. Return the meatballs to the pan and simmer for about 8–10 minutes until cooked through.",
+      "Stir in the meatballs and green vegetables and cook for another 3–5 minutes until tender but still vibrant.",
+      "To serve, spoon over jasmine rice and finish with a little chilli oil, fresh herbs and extra lime."
+    ],
+    "url": "https://www.instagram.com/p/DfeVwefNO1B/",
+    "author": "by_manuela",
+    "source": "",
+    "needs_review": false,
+    "added": "2026-11-27"
+  },
+  {
     "name": "Tomato Orzo & Parmesan Turkey Meatballs",
     "cuisine": "Italian",
     "type": "Main",
